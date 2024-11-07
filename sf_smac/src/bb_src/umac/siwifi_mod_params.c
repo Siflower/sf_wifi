@@ -565,7 +565,6 @@ void siwifi_set_rf_params(struct siwifi_hw *siwifi_hw, struct wiphy *wiphy)
                "\n\n%s: CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES\n\n",
                __func__);
         wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG;
-        wiphy->regulatory_flags |= REGULATORY_IGNORE_STALE_KICKOFF;
         wiphy_apply_custom_regulatory(wiphy, &siwifi_regdom);
     }
 #endif

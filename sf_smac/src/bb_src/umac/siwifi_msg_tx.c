@@ -299,6 +299,7 @@ int siwifi_send_add_if(struct siwifi_hw *siwifi_hw, const unsigned char *mac,
     switch (iftype) {
     case NL80211_IFTYPE_P2P_CLIENT:
         add_if_req_param->p2p = true;
+        fallthrough;
     case NL80211_IFTYPE_STATION:
         add_if_req_param->type = MM_STA;
         break;
@@ -307,6 +308,7 @@ int siwifi_send_add_if(struct siwifi_hw *siwifi_hw, const unsigned char *mac,
         break;
     case NL80211_IFTYPE_P2P_GO:
         add_if_req_param->p2p = true;
+        fallthrough;
     case NL80211_IFTYPE_AP:
         add_if_req_param->type = MM_AP;
         break;
@@ -786,7 +788,7 @@ int siwifi_send_rf_get_temperature(struct siwifi_hw *siwifi_hw, struct mm_rf_get
     return siwifi_send_msg(siwifi_hw, void_param, 1, MM_RF_GET_TEMP_CFM, cfm);
 }
 #ifdef CONFIG_SIWIFI_COOLING_TEMP
-#if (defined(CONFIG_SFA28_MPW0) || defined(CONFIG_SFA28_FULLMASK))
+#ifdef CONFIG_SFA28_MPW0
 int siwifi_send_change_power_req(struct siwifi_hw *siwifi_hw,int change_power,int change_power_trend){
  struct mm_change_power_req *req;
  SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
@@ -910,7 +912,7 @@ int siwifi_send_me_config_req(struct siwifi_hw *siwifi_hw)
         req->vht_cap.tx_highest = cpu_to_le16(vht_cap->vht_mcs.tx_highest);
         req->vht_cap.tx_mcs_map = cpu_to_le16(vht_cap->vht_mcs.tx_mcs_map);
 #if MY_LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
-        if (wiphy->bands[NL80211_BAND_5GHZ]->iftype_data != NULL) {
+        if (wiphy->bands[NL80211_BAND_5GHZ] && wiphy->bands[NL80211_BAND_5GHZ]->iftype_data != NULL) {
             he_cap = &wiphy->bands[NL80211_BAND_5GHZ]->iftype_data->he_cap;
             req->he_supp = he_cap->has_he;
             for (i = 0; i < MAC_HE_MAC_CAPA_LEN; i++) {
@@ -998,7 +1000,7 @@ int siwifi_send_me_sta_add(struct siwifi_hw *siwifi_hw, struct station_parameter
                          const u8 *mac, u8 inst_nbr, struct me_sta_add_cfm *cfm)
 {
     struct me_sta_add_req *req;
-    u8 *ht_mcs = (u8 *)&params->ht_capa->mcs;
+    u8 *ht_mcs = (u8 *)&params->link_sta_params.ht_capa->mcs;
     int i;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     req = siwifi_msg_zalloc(ME_STA_ADD_REQ, TASK_ME, DRV_TASK_ID,
@@ -1006,12 +1008,12 @@ int siwifi_send_me_sta_add(struct siwifi_hw *siwifi_hw, struct station_parameter
     if (!req)
         return -ENOMEM;
     memcpy(&(req->mac_addr.array[0]), mac, ETH_ALEN);
-    req->rate_set.length = params->supported_rates_len;
-    for (i = 0; i < params->supported_rates_len; i++)
-        req->rate_set.array[i] = params->supported_rates[i];
+    req->rate_set.length = params->link_sta_params.supported_rates_len;
+    for (i = 0; i < params->link_sta_params.supported_rates_len; i++)
+        req->rate_set.array[i] = params->link_sta_params.supported_rates[i];
     req->flags = 0;
-    if (params->ht_capa) {
-        const struct ieee80211_ht_cap *ht_capa = params->ht_capa;
+    if (params->link_sta_params.ht_capa) {
+        const struct ieee80211_ht_cap *ht_capa = params->link_sta_params.ht_capa;
         req->flags |= STA_HT_CAPA;
         req->ht_cap.ht_capa_info = cpu_to_le16(ht_capa->cap_info);
         req->ht_cap.a_mpdu_param = ht_capa->ampdu_params_info;
@@ -1021,8 +1023,8 @@ int siwifi_send_me_sta_add(struct siwifi_hw *siwifi_hw, struct station_parameter
         req->ht_cap.tx_beamforming_capa = cpu_to_le32(ht_capa->tx_BF_cap_info);
         req->ht_cap.asel_capa = ht_capa->antenna_selection_info;
     }
-    if (params->vht_capa) {
-        const struct ieee80211_vht_cap *vht_capa = params->vht_capa;
+    if (params->link_sta_params.vht_capa) {
+        const struct ieee80211_vht_cap *vht_capa = params->link_sta_params.vht_capa;
         req->flags |= STA_VHT_CAPA;
         req->vht_cap.vht_capa_info = cpu_to_le32(vht_capa->vht_cap_info);
         req->vht_cap.rx_highest = cpu_to_le16(vht_capa->supp_mcs.rx_highest);
@@ -1031,8 +1033,8 @@ int siwifi_send_me_sta_add(struct siwifi_hw *siwifi_hw, struct station_parameter
         req->vht_cap.tx_mcs_map = cpu_to_le16(vht_capa->supp_mcs.tx_mcs_map);
     }
 #if MY_LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
-    if (params->he_capa) {
-        const struct ieee80211_he_cap_elem *he_capa = params->he_capa;
+    if (params->link_sta_params.he_capa) {
+        const struct ieee80211_he_cap_elem *he_capa = params->link_sta_params.he_capa;
         req->flags |= STA_HE_CAPA;
         for (i = 0; i < MAC_HE_MAC_CAPA_LEN; i++) {
             req->he_cap.mac_cap_info[i] = he_capa->mac_cap_info[i];
@@ -1052,9 +1054,9 @@ int siwifi_send_me_sta_add(struct siwifi_hw *siwifi_hw, struct station_parameter
         req->flags |= STA_QOS_CAPA;
     if (params->sta_flags_set & BIT(NL80211_STA_FLAG_MFP))
         req->flags |= STA_MFP_CAPA;
-    if (params->opmode_notif_used) {
+    if (params->link_sta_params.opmode_notif_used) {
         req->flags |= STA_OPMOD_NOTIF;
-        req->opmode = params->opmode_notif;
+        req->opmode = params->link_sta_params.opmode_notif;
     }
     req->aid = cpu_to_le16(params->aid);
     req->uapsd_queues = params->uapsd_queues;
@@ -1373,17 +1375,12 @@ int siwifi_send_scanu_req(struct siwifi_hw *siwifi_hw, struct siwifi_vif *siwifi
     req->vif_idx = siwifi_vif->vif_index;
     req->chan_cnt = (u8)min_t(int, SCAN_CHANNEL_MAX, param->n_channels);
     req->ssid_cnt = (u8)min_t(int, SCAN_SSID_MAX, param->n_ssids);
-    if (param->bssid) {
-        mac_array = (concatenate_u8_to_u16(param->bssid[1],param->bssid[0]));
-        memcpy(&(req->bssid.array[0]), &mac_array, ETH_ALEN/3);
-        mac_array = (concatenate_u8_to_u16(param->bssid[3],param->bssid[2]));
-        memcpy(&(req->bssid.array[1]), &mac_array, ETH_ALEN/3);
-        mac_array = (concatenate_u8_to_u16(param->bssid[5],param->bssid[4]));
-        memcpy(&(req->bssid.array[2]), &mac_array, ETH_ALEN/3);
-    }
-    else {
-        req->bssid = mac_addr_bcst;
-    }
+    mac_array = (concatenate_u8_to_u16(param->bssid[1], param->bssid[0]));
+    memcpy(&(req->bssid.array[0]), &mac_array, ETH_ALEN / 3);
+    mac_array = (concatenate_u8_to_u16(param->bssid[3], param->bssid[2]));
+    memcpy(&(req->bssid.array[1]), &mac_array, ETH_ALEN / 3);
+    mac_array = (concatenate_u8_to_u16(param->bssid[5], param->bssid[4]));
+    memcpy(&(req->bssid.array[2]), &mac_array, ETH_ALEN / 3);
     req->no_cck = param->no_cck;
     if (req->ssid_cnt == 0)
         chan_flags |= SCAN_PASSIVE_BIT;
@@ -1989,7 +1986,6 @@ int siwifi_send_dbg_get_vendor_mp_info_req(struct siwifi_hw *siwifi_hw,
         struct dbg_get_vendor_mp_info_cfm *cfm)
 {
     struct dbg_get_vendor_mp_info_req *req;
-    SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     req = siwifi_msg_zalloc(DBG_VDR_GET_MP_INFO_REQ, TASK_DBG, DRV_TASK_ID, sizeof(struct dbg_get_vendor_mp_info_req));
     if (!req)
         return -ENOMEM;

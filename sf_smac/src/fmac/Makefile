@@ -1,6 +1,6 @@
-SUBDIRS ?= drivers/net/wireless/siflower
-umac_dir=$(SUBDIRS)/fmac/bb_src/umac
-lmac_dir=$(SUBDIRS)/fmac/bb_src/lmac
+DRV_PATH ?= drivers/net/wireless/siflower
+umac_dir=$(DRV_PATH)/fmac/bb_src/umac
+lmac_dir=$(DRV_PATH)/fmac/bb_src/lmac
 export umac_dir
 export lmac_dir
 
@@ -12,6 +12,6 @@ export root_src_ref_dir
 
 include $(umac_dir)/fullmac/fullmac.mk
 
-ccflags-y += -I$(SUBDIRS)/rf/
+ccflags-y += -I$(DRV_PATH)/rf/
 
 sf16a18_fmac-y += $(SF16A18_FULLMAC_SRC_OBJS)

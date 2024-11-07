@@ -335,6 +335,7 @@ u16 siwifi_select_txq(struct siwifi_vif *siwifi_vif, struct sk_buff *skb)
             break;
         }
         siwifi_vif = siwifi_vif->ap_vlan.master;
+        fallthrough;
     case NL80211_IFTYPE_AP:
     case NL80211_IFTYPE_P2P_GO:
     {
@@ -489,6 +490,7 @@ static struct siwifi_sta *siwifi_get_tx_info(struct siwifi_vif *siwifi_vif,
      break;
     }
     siwifi_vif = siwifi_vif->ap_vlan.master;
+    fallthrough;
    case NL80211_IFTYPE_AP:
    case NL80211_IFTYPE_P2P_GO:
     {
@@ -1426,7 +1428,7 @@ int siwifi_txdatacfm_burst(void *pthis, void *host_id, uint32_t burst_length)
         }
 #if defined (CONFIG_SIWIFI_DEBUGFS) || defined (CONFIG_SIWIFI_PROCFS)
         if (txhdr->hw_hdr.cfm.ampdu_size &&
-            txhdr->hw_hdr.cfm.ampdu_size < IEEE80211_MAX_AMPDU_BUF)
+            txhdr->hw_hdr.cfm.ampdu_size < IEEE80211_MAX_AMPDU_BUF_HT)
             siwifi_hw->stats.ampdus_tx[txhdr->hw_hdr.cfm.ampdu_size - 1]++;
 #endif
 #ifdef CONFIG_SIWIFI_AMSDUS_TX
@@ -1635,7 +1637,7 @@ int siwifi_txdatacfm(void *pthis, void *host_id)
     }
 #if defined (CONFIG_SIWIFI_DEBUGFS) || defined (CONFIG_SIWIFI_PROCFS)
     if (txhdr->hw_hdr.cfm.ampdu_size &&
-        txhdr->hw_hdr.cfm.ampdu_size < IEEE80211_MAX_AMPDU_BUF)
+        txhdr->hw_hdr.cfm.ampdu_size < IEEE80211_MAX_AMPDU_BUF_HT)
         siwifi_hw->stats.ampdus_tx[txhdr->hw_hdr.cfm.ampdu_size - 1]++;
 #endif
 #ifdef CONFIG_SIWIFI_AMSDUS_TX

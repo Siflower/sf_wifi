@@ -692,22 +692,22 @@ static inline void siwifi_fill_station_parameters(const u8 *ies, size_t ies_len,
             memcpy((u8 *)merged_supp_rates, supp_rates_ie + 2, supp_rates_ie[1]);
             memcpy(((u8 *)merged_supp_rates) + supp_rates_ie[1], ext_supp_rates_ie + 2,
                     ext_supp_rates_ie[1]);
-            params->supported_rates = merged_supp_rates;
-            params->supported_rates_len = supp_rates_ie[1] + ext_supp_rates_ie[1];
+            params->link_sta_params.supported_rates = merged_supp_rates;
+            params->link_sta_params.supported_rates_len = supp_rates_ie[1] + ext_supp_rates_ie[1];
         } else {
             merged_supp_rates = siwifi_kmalloc(supp_rates_ie[1], GFP_ATOMIC);
             memcpy((u8 *)merged_supp_rates, supp_rates_ie + 2, supp_rates_ie[1]);
-            params->supported_rates = merged_supp_rates;
-            params->supported_rates_len = supp_rates_ie[1];
+            params->link_sta_params.supported_rates = merged_supp_rates;
+            params->link_sta_params.supported_rates_len = supp_rates_ie[1];
         }
     }
     ht_capa_ie = cfg80211_find_ie(WLAN_EID_HT_CAPABILITY, ies, ies_len);
     if (ht_capa_ie) {
-        params->ht_capa = (const struct ieee80211_ht_cap *)(ht_capa_ie + 2);
+        params->link_sta_params.ht_capa = (const struct ieee80211_ht_cap *)(ht_capa_ie + 2);
     }
     vht_capa_ie = cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, ies, ies_len);
     if (vht_capa_ie) {
-        params->vht_capa = (const struct ieee80211_vht_cap *)(vht_capa_ie + 2);
+        params->link_sta_params.vht_capa = (const struct ieee80211_vht_cap *)(vht_capa_ie + 2);
     }
 }
 struct station_parameters *siwifi_rebuild_sta_params(struct station_parameters *parameters);
@@ -760,9 +760,9 @@ static inline int siwifi_rx_sm_connect_ind(struct siwifi_hw *siwifi_hw,
         memset(&params, 0, sizeof(struct station_parameters));
         siwifi_fill_station_parameters(rsp_ie, ind->assoc_rsp_ie_len, &params);
         sta->rec_info.params = siwifi_rebuild_sta_params(&params);
-        sta->ht = params.ht_capa ? 1 : 0;
-        sta->vht = params.vht_capa ? 1 : 0;
-        siwifi_kfree(params.supported_rates);
+        sta->ht = params.link_sta_params.ht_capa ? 1 : 0;
+        sta->vht = params.link_sta_params.vht_capa ? 1 : 0;
+        siwifi_kfree(params.link_sta_params.supported_rates);
         switch (ind->width) {
         case 0:
             sta->width = NL80211_CHAN_WIDTH_20;

@@ -193,9 +193,23 @@ void traffic_detect_be_edca(struct siwifi_hw *siwifi_hw, struct siwifi_vif *siwi
  }
 }
 #ifdef CONFIG_BRIDGE_ACCELERATE
+static DEFINE_SPINLOCK(backlog_hook_lock);
 typedef int (*device_drv_hook_fn)(struct sk_buff *skb);
-extern int backlog_skb_handler_register(device_drv_hook_fn hook);
-extern int backlog_skb_handler_unregister(device_drv_hook_fn hook);
+device_drv_hook_fn g_wlan_hook_fn = NULL;
+int backlog_skb_handler_register(device_drv_hook_fn hook)
+{
+ spin_lock(&backlog_hook_lock);
+ g_wlan_hook_fn = hook;
+ spin_unlock(&backlog_hook_lock);
+ return 0;
+}
+int backlog_skb_handler_unregister(device_drv_hook_fn hook)
+{
+ spin_lock(&backlog_hook_lock);
+ g_wlan_hook_fn = NULL;
+ spin_unlock(&backlog_hook_lock);
+ return 0;
+}
 int accel_enable = 1;
 u64 accelerate_cnt = 0;
 u64 accel_pkt_in = 0;

@@ -126,25 +126,22 @@ void siwifi_led_rx(struct siwifi_hw *siwifi_hw)
  unsigned long led_delay = MAC80211_BLINK_DELAY;
  if (!atomic_read(&siwifi_hw->rx_led_active))
   return;
- if(&siwifi_hw->local_rx_led != NULL){
-  led_trigger_blink_oneshot(&siwifi_hw->local_rx_led, &led_delay, &led_delay, 0);
- }
+ led_trigger_blink_oneshot(&siwifi_hw->local_rx_led, led_delay, led_delay, 0);
 }
 void siwifi_led_tx(struct siwifi_hw *siwifi_hw)
 {
  unsigned long led_delay = MAC80211_BLINK_DELAY;
  if (!atomic_read(&siwifi_hw->tx_led_active))
   return;
- if(&siwifi_hw->local_tx_led != NULL){
-  led_trigger_blink_oneshot(&siwifi_hw->local_tx_led, &led_delay, &led_delay, 0);
- }
+ led_trigger_blink_oneshot(&siwifi_hw->local_tx_led, led_delay, led_delay, 0);
 }
-static void siwifi_local_rx_led_activate(struct led_classdev *led_cdev)
+static int siwifi_local_rx_led_activate(struct led_classdev *led_cdev)
 {
  struct siwifi_hw *siwifi_hw = container_of(led_cdev->trigger,
            struct siwifi_hw,
            local_rx_led);
  atomic_inc(&siwifi_hw->rx_led_active);
+ return 0;
 }
 static void siwifi_local_rx_led_deactivate(struct led_classdev *led_cdev)
 {
@@ -153,12 +150,13 @@ static void siwifi_local_rx_led_deactivate(struct led_classdev *led_cdev)
            local_rx_led);
  atomic_dec(&siwifi_hw->rx_led_active);
 }
-static void siwifi_local_tx_led_activate(struct led_classdev *led_cdev)
+static int siwifi_local_tx_led_activate(struct led_classdev *led_cdev)
 {
  struct siwifi_hw *siwifi_hw = container_of(led_cdev->trigger,
            struct siwifi_hw,
            local_tx_led);
  atomic_inc(&siwifi_hw->tx_led_active);
+ return 0;
 }
 static void siwifi_local_tx_led_deactivate(struct led_classdev *led_cdev)
 {

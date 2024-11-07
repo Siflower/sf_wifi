@@ -1,4 +1,6 @@
 #include <net/mac80211.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
 #include "siwifi_utils.h"
 #include "siwifi_defs.h"
 #include "siwifi_rx.h"
@@ -768,6 +770,10 @@ int siwifi_ipc_init(struct siwifi_hw *siwifi_hw, u8 *shared_ram, void *reg_base)
     cb.recv_unsup_rx_vec_ind = siwifi_unsup_rx_vec_ind;
     siwifi_hw->ipc_env = (struct ipc_host_env_tag *)
                        siwifi_kzalloc(sizeof(struct ipc_host_env_tag), GFP_KERNEL);
+    if (!siwifi_hw->ipc_env) {
+       dev_err(siwifi_hw->dev, "Failed to allocate ipc_env\n");
+       return -ENOMEM;
+    }
     siwifi_hw->ipc_env->mod_params = siwifi_hw->mod_params;
     ipc_host_init(siwifi_hw->ipc_env, &cb,
                   (struct ipc_shared_env_tag *)shared_ram, reg_base, siwifi_hw);
@@ -993,9 +999,9 @@ void siwifi_src_filter_hash_del(struct siwifi_vif *vif, unsigned char *src_mac)
     }
     return;
 }
-void src_filter_aging(unsigned long ptr)
+void src_filter_aging(struct timer_list *timer)
 {
-    struct siwifi_vif *siwifi_vif = (struct siwifi_vif *)ptr;
+    struct siwifi_vif *siwifi_vif = from_timer(siwifi_vif, timer, src_filter_timer);
     struct siwifi_src_filter *src_filter = NULL;
     struct siwifi_src_filter *src_filter_tmp = NULL;
     int i;
@@ -1270,7 +1276,7 @@ int siwifi_channel_recovery_check(struct siwifi_hw *siwifi_hw)
             if (channel_num != vif_sta_channel_num || vif_channel_width != vif_sta_channel_width) {
                 printk("ERROR:vif(%s) hostapd beacon channel %d width %dis diff from channel %d width %d\n",
                         vif->ndev->name, channel_num, vif_channel_width, vif_sta_channel_num, vif_sta_channel_width);
-                cfg80211_ch_switch_notify(vif->ndev, &siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def);
+                cfg80211_ch_switch_notify(vif->ndev, &siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def, 0);
                 siwifi_chanctx_unlink(vif);
                 vif->ch_index = vif_sta->ch_index;
                 ctxt_sta->count++;

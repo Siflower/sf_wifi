@@ -531,7 +531,7 @@ static u8 *siwifi_build_bcn_csa(struct siwifi_bcn *bcn, struct siwifi_vif *siwif
                 else
                     pos[3] = 0;
                 break;
-            case WLAN_EID_VHT_TX_POWER_ENVELOPE:
+            case WLAN_EID_TX_POWER_ENVELOPE:
                 pos[3] = 46;
                 if(cur_width == NL80211_CHAN_WIDTH_80)
                 {
@@ -622,7 +622,7 @@ u8 * siwifi_build_bcn_after(struct siwifi_bcn *bcn, struct cfg80211_beacon_data 
                 else
                     pos[3] = 0;
                 break;
-            case WLAN_EID_VHT_TX_POWER_ENVELOPE:
+            case WLAN_EID_TX_POWER_ENVELOPE:
                 pos[3] = 46;
                 if(width == NL80211_CHAN_WIDTH_80)
                 {
@@ -688,8 +688,8 @@ static void siwifi_acs_csa_finish(struct work_struct *ws)
     if (error)
         cfg80211_stop_iface(siwifi_hw->wiphy, &vif->wdev, GFP_KERNEL);
     else {
-        mutex_lock(&vif->wdev.mtx);
-        __acquire(&vif->wdev.mtx);
+        mutex_lock(&vif->wdev.wiphy->mtx);
+        __acquire(&vif->wdev.wiphy->mtx);
         spin_lock_bh(&siwifi_hw->cb_lock);
         siwifi_chanctx_unlink(vif);
         siwifi_chanctx_link(vif, csa->ch_idx, &csa->chandef);
@@ -701,9 +701,9 @@ static void siwifi_acs_csa_finish(struct work_struct *ws)
             siwifi_txq_vif_stop(vif, SIWIFI_TXQ_STOP_CHAN, siwifi_hw);
         }
         spin_unlock_bh(&siwifi_hw->cb_lock);
-        cfg80211_ch_switch_notify(vif->ndev, &csa->chandef);
-        mutex_unlock(&vif->wdev.mtx);
-        __release(&vif->wdev.mtx);
+        cfg80211_ch_switch_notify(vif->ndev, &csa->chandef, 0);
+        mutex_unlock(&vif->wdev.wiphy->mtx);
+        __release(&vif->wdev.wiphy->mtx);
     }
     vif->ap.channel_switching = false;
     siwifi_del_csa(vif);
@@ -775,7 +775,7 @@ static int siwifi_acs_channel_switch(struct siwifi_hw *siwifi_hw, struct siwifi_
     } else {
         printk("siwifi_send_bcn_change success\n");
         INIT_WORK(&csa->work, siwifi_acs_csa_finish);
-        cfg80211_ch_switch_started_notify(vif->ndev, &csa->chandef, csa_count);
+        cfg80211_ch_switch_started_notify(vif->ndev, &csa->chandef, 0, csa_count, false);
     }
 end:
     siwifi_ipc_elem_var_deallocs(siwifi_hw, &elem);

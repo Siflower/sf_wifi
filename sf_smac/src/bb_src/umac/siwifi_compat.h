@@ -66,7 +66,7 @@
     cfg80211_rx_mgmt(wdev, freq, rssi, buf, len, flags, GFP_ATOMIC)
 #endif
 #if MY_LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-#define siwifi_cfg80211_tdls_mgmt(wiphy,dev,peer,act,tok,status,peer_capability,initiator,buf,len) \
+#define siwifi_cfg80211_tdls_mgmt(wiphy,dev,peer,link_id,act,tok,status,peer_capability,initiator,buf,len) \
     siwifi_cfg80211_tdls_mgmt(wiphy, dev, peer, act, tok, status, peer_capability, buf, len)
 #define siwifi_cfg80211_del_station_compat(wiphy,dev,params) \
     siwifi_cfg80211_del_station(wiphy, dev, const u8 *mac)

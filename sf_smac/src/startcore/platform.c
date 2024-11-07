@@ -1,6 +1,3 @@
-#ifdef CONFIG_SFA28_FULLMASK
-#include <sf19a28.h>
-#endif
 #include "start_core.h"
 #ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
 int plat_load_task(struct task_info *node)

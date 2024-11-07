@@ -3,6 +3,15 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#define CONFIG_FIRMWARE_LOAD_BASE 0x1f00000
+#define CONFIG_FIRMWARE_SIZE 2048
+#define SIFLOWER_SYSCTL_BASE 0xB9E00000
+#define SYS_MISC_CTRL (SIFLOWER_SYSCTL_BASE + 0x202C)
+#define M_SFDSP_0_SI_ExceptionBase_12_19 (SIFLOWER_SYSCTL_BASE + 0x3003C)
+#define M_SFDSP_0_SI_ExceptionBase_20_27 (SIFLOWER_SYSCTL_BASE + 0x30040)
+#define M_SFDSP_0_SI_ExceptionBase_28 (SIFLOWER_SYSCTL_BASE + 0x30044)
+#define M_SFDSP_0_ARESETN (SIFLOWER_SYSCTL_BASE + 0x30004)
+#define M_SFDSP_0_POR_RESETN (SIFLOWER_SYSCTL_BASE + 0x30000)
 struct task_info {
     struct list_head list;
     unsigned long entry_addr;

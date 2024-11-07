@@ -8,6 +8,7 @@
 #include <linux/of_net.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/timer.h>
 #ifdef CONFIG_SFAX8_FACTORY_READ
 #include <sfax8_factory_read.h>
 #endif
@@ -589,7 +590,7 @@ static int siwifi_check_vif_channel_same(struct siwifi_vif *vif, u8 ch_idx,
         if (ctxt2->chan_def.chan == NULL || chandef_sta->chan == NULL) {
             continue;
         }
-        cfg80211_ch_switch_notify(vif_tmp->ndev, chandef_sta);
+        cfg80211_ch_switch_notify(vif_tmp->ndev, chandef_sta, 0);
         siwifi_chanctx_unlink(vif_tmp);
         vif_tmp->ch_index = sta_ch_idx;
         ctxt_sta->count++;
@@ -666,8 +667,8 @@ static void siwifi_csa_finish(struct work_struct *ws)
     if (error)
         cfg80211_stop_iface(siwifi_hw->wiphy, &vif->wdev, GFP_KERNEL);
     else {
-        mutex_lock(&vif->wdev.mtx);
-        __acquire(&vif->wdev.mtx);
+        mutex_lock(&vif->wdev.wiphy->mtx);
+        __acquire(&vif->wdev.wiphy->mtx);
         spin_lock_bh(&siwifi_hw->cb_lock);
         siwifi_chanctx_unlink(vif);
         siwifi_chanctx_link(vif, csa->ch_idx, &csa->chandef);
@@ -677,9 +678,9 @@ static void siwifi_csa_finish(struct work_struct *ws)
         } else
             siwifi_txq_vif_stop(vif, SIWIFI_TXQ_STOP_CHAN, siwifi_hw);
         spin_unlock_bh(&siwifi_hw->cb_lock);
-        cfg80211_ch_switch_notify(vif->ndev, &csa->chandef);
-        mutex_unlock(&vif->wdev.mtx);
-        __release(&vif->wdev.mtx);
+        cfg80211_ch_switch_notify(vif->ndev, &csa->chandef, 0);
+        mutex_unlock(&vif->wdev.wiphy->mtx);
+        __release(&vif->wdev.wiphy->mtx);
     }
     vif->ap.channel_switching = false;
     siwifi_del_csa(vif);
@@ -811,9 +812,7 @@ static struct net_device_stats *siwifi_get_stats(struct net_device *dev)
     struct siwifi_vif *vif = netdev_priv(dev);
     return &vif->net_stats;
 }
-u16 siwifi_select_queue(struct net_device *dev, struct sk_buff *skb,
-                      struct net_device *sb_dev,
-                      select_queue_fallback_t fallback)
+u16 siwifi_select_queue(struct net_device *dev, struct sk_buff *skb, struct net_device *sb_dev)
 {
     u16 txq_num;
     struct siwifi_vif *siwifi_vif = netdev_priv(dev);
@@ -905,6 +904,7 @@ static struct wireless_dev *siwifi_interface_add(struct siwifi_hw *siwifi_hw,
 {
  struct net_device *ndev;
  struct siwifi_vif *vif;
+ unsigned char temp_addr[ETH_ALEN];
  int min_idx, max_idx;
  int vif_idx = -1;
  int i;
@@ -982,6 +982,7 @@ static struct wireless_dev *siwifi_interface_add(struct siwifi_hw *siwifi_hw,
         INIT_LIST_HEAD(&vif->ap.proxy_list);
         vif->ap.create_path = false;
         vif->ap.generation = 0;
+        fallthrough;
     case NL80211_IFTYPE_AP:
     case NL80211_IFTYPE_P2P_GO:
         INIT_LIST_HEAD(&vif->ap.sta_list);
@@ -1017,17 +1018,18 @@ static struct wireless_dev *siwifi_interface_add(struct siwifi_hw *siwifi_hw,
         break;
     }
     if (type == NL80211_IFTYPE_AP_VLAN)
-        memcpy(ndev->dev_addr, params->macaddr, ETH_ALEN);
+        dev_addr_set(ndev, params->macaddr);
     else {
-        memcpy(ndev->dev_addr, siwifi_hw->wiphy->perm_addr, ETH_ALEN);
-        ndev->dev_addr[5] ^= vif_idx;
+        memcpy(temp_addr, siwifi_hw->wiphy->perm_addr, ETH_ALEN);
+        temp_addr[5] ^= vif_idx;
+        dev_addr_set(ndev, temp_addr);
     }
     if (params) {
         vif->use_4addr = params->use_4addr;
         ndev->ieee80211_ptr->use_4addr = params->use_4addr;
     } else
         vif->use_4addr = false;
-    if (register_netdevice(ndev))
+    if (cfg80211_register_netdevice(ndev))
         goto err;
 #if defined(CONFIG_SF19A28_FULLMASK) && IS_ENABLED(CONFIG_SFAX8_HNAT_DRIVER) && IS_ENABLED(CONFIG_NF_FLOW_TABLE)
  hnat_dev = bus_find_device_by_name(&platform_bus_type, NULL, "sf_hnat.0.auto");
@@ -1049,7 +1051,7 @@ static struct wireless_dev *siwifi_interface_add(struct siwifi_hw *siwifi_hw,
     siwifi_hw->dying_gasp_valid = false;
     if (type == NL80211_IFTYPE_STATION) {
         spin_lock_init(&vif->src_filter_lock);
-        setup_timer(&(vif->src_filter_timer), src_filter_aging, (unsigned long)vif);
+        timer_setup(&(vif->src_filter_timer), src_filter_aging, 0);
         mod_timer(&(vif->src_filter_timer), jiffies + SRC_FILTER_AGING_TIME * HZ);
     }
     return &vif->wdev;
@@ -1130,7 +1132,7 @@ static int siwifi_cfg80211_del_iface(struct wiphy *wiphy, struct wireless_dev *w
    }
   }
 #endif
-  unregister_netdevice(dev);
+  cfg80211_unregister_netdevice(dev);
  }
     spin_lock_bh(&siwifi_hw->tx_lock);
     if (siwifi_vif->lm_ctl)
@@ -1198,6 +1200,7 @@ static int siwifi_cfg80211_change_iface(struct wiphy *wiphy,
         INIT_LIST_HEAD(&vif->ap.proxy_list);
         vif->ap.create_path = false;
         vif->ap.generation = 0;
+        fallthrough;
     case NL80211_IFTYPE_AP:
     case NL80211_IFTYPE_P2P_GO:
         INIT_LIST_HEAD(&vif->ap.sta_list);
@@ -1284,8 +1287,8 @@ struct key_params *rebuild_sta_key_params(struct key_params *params)
     return key_params;
 }
 static int siwifi_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netdev,
-                                 u8 key_index, bool pairwise, const u8 *mac_addr,
-                                 struct key_params *params)
+                                 int link_id, u8 key_index, bool pairwise,
+                                 const u8 *mac_addr, struct key_params *params)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
     struct siwifi_vif *vif = netdev_priv(netdev);
@@ -1382,15 +1385,16 @@ static int siwifi_cfg80211_add_key(struct wiphy *wiphy, struct net_device *netde
     return 0;
 }
 static int siwifi_cfg80211_get_key(struct wiphy *wiphy, struct net_device *netdev,
-                                 u8 key_index, bool pairwise, const u8 *mac_addr,
-                                 void *cookie,
+                                 int link_id, u8 key_index, bool pairwise,
+                                 const u8 *mac_addr, void *cookie,
                                  void (*callback)(void *cookie, struct key_params*))
 {
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     return -1;
 }
 static int siwifi_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
-                                 u8 key_index, bool pairwise, const u8 *mac_addr)
+                                 int link_id, u8 key_index, bool pairwise,
+                                 const u8 *mac_addr)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
     struct siwifi_vif *vif = netdev_priv(netdev);
@@ -1434,7 +1438,7 @@ static int siwifi_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netde
     return error;
 }
 static int siwifi_cfg80211_set_default_key(struct wiphy *wiphy,
-                                         struct net_device *netdev,
+                                         struct net_device *netdev, int link_id,
                                          u8 key_index, bool unicast, bool multicast)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
@@ -1453,7 +1457,7 @@ static int siwifi_cfg80211_set_default_key(struct wiphy *wiphy,
     return 0;
 }
 static int siwifi_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
-                                              struct net_device *netdev,
+                                              struct net_device *netdev, int link_id,
                                               u8 key_index)
 {
     return 0;
@@ -1474,8 +1478,8 @@ static int siwifi_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
         key_params.key_len = sme->key_len;
         key_params.seq_len = 0;
         key_params.cipher = sme->crypto.cipher_group;
-        siwifi_cfg80211_set_default_key(wiphy, dev, sme->key_idx, false, false);
-        siwifi_cfg80211_add_key(wiphy, dev, sme->key_idx, false, NULL, &key_params);
+        siwifi_cfg80211_set_default_key(wiphy, dev, 0, sme->key_idx, false, false);
+        siwifi_cfg80211_add_key(wiphy, dev, 0, sme->key_idx, false, NULL, &key_params);
     }
 #if MY_LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
     else if ((sme->auth_type == NL80211_AUTHTYPE_SAE) &&
@@ -1527,24 +1531,23 @@ static int siwifi_cfg80211_external_auth(struct wiphy *wiphy, struct net_device 
 struct station_parameters *siwifi_rebuild_sta_params(struct station_parameters *parameters)
 {
     struct station_parameters *station_parameters;
-    station_parameters = siwifi_kmalloc(sizeof(struct station_parameters) + parameters->supported_rates_len +
-                                                 sizeof(struct ieee80211_ht_cap) + sizeof(struct ieee80211_vht_cap),
-                    GFP_ATOMIC);
+    station_parameters = siwifi_kmalloc(sizeof(struct station_parameters) + parameters->link_sta_params.supported_rates_len +
+                                                 sizeof(struct ieee80211_ht_cap) + sizeof(struct ieee80211_vht_cap), GFP_ATOMIC);
     if (!station_parameters)
         return NULL;
     memcpy((u8 *)station_parameters, (u8 *)parameters, sizeof(struct station_parameters));
-    station_parameters->supported_rates = (u8 *)station_parameters + sizeof(struct station_parameters);
-    station_parameters->ht_capa = (struct ieee80211_ht_cap *)((u8 *)station_parameters->supported_rates + parameters->supported_rates_len);
-    station_parameters->vht_capa = (struct ieee80211_vht_cap *)((u8 *)station_parameters->ht_capa + sizeof(struct ieee80211_ht_cap));
-    memcpy((u8 *)station_parameters->supported_rates, (u8 *)parameters->supported_rates, parameters->supported_rates_len);
-    if (parameters->ht_capa)
-        memcpy((u8 *)station_parameters->ht_capa, (u8 *)parameters->ht_capa, sizeof(struct ieee80211_ht_cap));
+    station_parameters->link_sta_params.supported_rates = (u8 *)station_parameters + sizeof(struct station_parameters);
+    station_parameters->link_sta_params.ht_capa = (struct ieee80211_ht_cap *)((u8 *)station_parameters->link_sta_params.supported_rates + parameters->link_sta_params.supported_rates_len);
+    station_parameters->link_sta_params.vht_capa = (struct ieee80211_vht_cap *)((u8 *)station_parameters->link_sta_params.ht_capa + sizeof(struct ieee80211_ht_cap));
+    memcpy((u8 *)station_parameters->link_sta_params.supported_rates, (u8 *)parameters->link_sta_params.supported_rates, parameters->link_sta_params.supported_rates_len);
+    if (parameters->link_sta_params.ht_capa)
+        memcpy((u8 *)station_parameters->link_sta_params.ht_capa, (u8 *)parameters->link_sta_params.ht_capa, sizeof(struct ieee80211_ht_cap));
     else
-        station_parameters->ht_capa = NULL;
-    if (parameters->vht_capa)
-        memcpy((u8 *)station_parameters->vht_capa, (u8 *)parameters->vht_capa, sizeof(struct ieee80211_vht_cap));
+        station_parameters->link_sta_params.ht_capa = NULL;
+    if (parameters->link_sta_params.vht_capa)
+        memcpy((u8 *)station_parameters->link_sta_params.vht_capa, (u8 *)parameters->link_sta_params.vht_capa, sizeof(struct ieee80211_vht_cap));
     else
-        station_parameters->vht_capa = NULL;
+        station_parameters->link_sta_params.vht_capa = NULL;
     return station_parameters;
 }
 #ifdef CONFIG_SIWIFI_EASYMESH
@@ -1633,8 +1636,8 @@ static int siwifi_cfg80211_add_station(struct wiphy *wiphy, struct net_device *d
             sta->vif_idx = siwifi_vif->vif_index;
             sta->vlan_idx = sta->vif_idx;
             sta->qos = (params->sta_flags_set & BIT(NL80211_STA_FLAG_WME)) != 0;
-            sta->ht = params->ht_capa ? 1 : 0;
-            sta->vht = params->vht_capa ? 1 : 0;
+            sta->ht = params->link_sta_params.ht_capa ? 1 : 0;
+            sta->vht = params->link_sta_params.vht_capa ? 1 : 0;
    sta->stats.connected_time = ktime_get_seconds();
    sta->stats.count = 0;
    memset(sta->stats.data_rssi_old, 0 , sizeof(sta->stats.data_rssi_old));
@@ -1690,8 +1693,8 @@ static int siwifi_cfg80211_add_station(struct wiphy *wiphy, struct net_device *d
             error = 0;
 #ifdef CONFIG_SIWIFI_BFMER
             if (siwifi_hw->mod_params->bfmer)
-                siwifi_send_bfmer_enable(siwifi_hw, sta, params->vht_capa);
-            siwifi_mu_group_sta_init(sta, params->vht_capa);
+                siwifi_send_bfmer_enable(siwifi_hw, sta, params->link_sta_params.vht_capa);
+            siwifi_mu_group_sta_init(sta, params->link_sta_params.vht_capa);
 #endif
             #define PRINT_STA_FLAG(f) \
                 (params->sta_flags_set & BIT(NL80211_STA_FLAG_##f) ? "["#f"]" : "")
@@ -1836,8 +1839,8 @@ static int siwifi_cfg80211_change_station(struct wiphy *wiphy, struct net_device
                     sta->vif_idx = siwifi_vif->vif_index;
                     sta->vlan_idx = sta->vif_idx;
                     sta->qos = (params->sta_flags_set & BIT(NL80211_STA_FLAG_WME)) != 0;
-                    sta->ht = params->ht_capa ? 1 : 0;
-                    sta->vht = params->vht_capa ? 1 : 0;
+                    sta->ht = params->link_sta_params.ht_capa ? 1 : 0;
+                    sta->vht = params->link_sta_params.vht_capa ? 1 : 0;
                     sta->acm = 0;
                     for (tid = 0; tid < NX_NB_TXQ_PER_STA; tid++) {
                         int uapsd_bit = siwifi_hwq2uapsd[siwifi_tid2hwq[tid]];
@@ -1866,7 +1869,7 @@ static int siwifi_cfg80211_change_station(struct wiphy *wiphy, struct net_device
                     spin_unlock_bh(&siwifi_hw->cb_lock);
 #ifdef CONFIG_SIWIFI_BFMER
                     if (siwifi_hw->mod_params->bfmer)
-                        siwifi_send_bfmer_enable(siwifi_hw, sta, params->vht_capa);
+                        siwifi_send_bfmer_enable(siwifi_hw, sta, params->link_sta_params.vht_capa);
                     siwifi_mu_group_sta_init(sta, NULL);
 #endif
                     #define PRINT_STA_FLAG(f) \
@@ -2059,10 +2062,11 @@ static int siwifi_cfg80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
     return error;
 }
 static int siwifi_cfg80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
-                                       struct cfg80211_beacon_data *info)
+                                       struct cfg80211_ap_update *ap_info)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
     struct siwifi_vif *vif = netdev_priv(dev);
+    struct cfg80211_beacon_data *info = &ap_info->beacon;
     struct siwifi_bcn *bcn = &vif->ap.bcn;
     struct siwifi_ipc_elem_var elem;
     u8 *buf;
@@ -2083,7 +2087,7 @@ dealloc:
     siwifi_ipc_elem_var_deallocs(siwifi_hw, &elem);
     return error;
 }
-static int siwifi_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
+static int siwifi_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev, unsigned int link_id)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
     struct siwifi_vif *siwifi_vif = netdev_priv(dev);
@@ -2156,7 +2160,7 @@ static int siwifi_cfg80211_set_monitor_channel(struct wiphy *wiphy,
         if (chandef->chan == NULL) {
             struct ieee80211_channel *chan;
             chan = &siwifi_2ghz_channels[5];
-            cfg80211_chandef_create(chandef, chan, NL80211_CHAN_WIDTH_20);
+            cfg80211_chandef_create(chandef, chan, NL80211_CHAN_HT20);
         }
     }
     #ifdef CONFIG_SIWIFI_MON_DATA
@@ -2195,11 +2199,6 @@ static int siwifi_cfg80211_probe_client(struct wiphy *wiphy, struct net_device *
         }
     }
     return 0;
-}
-void siwifi_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
-                   struct wireless_dev *wdev,
-                   u16 frame_type, bool reg)
-{
 }
 static int siwifi_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 {
@@ -2373,7 +2372,7 @@ static int siwifi_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *n
     return 0;
 }
 static int siwifi_cfg80211_get_channel(struct wiphy *wiphy,
-                                     struct wireless_dev *wdev,
+                                     struct wireless_dev *wdev, unsigned int link_id,
                                      struct cfg80211_chan_def *chandef) {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
     struct siwifi_vif *siwifi_vif = container_of(wdev, struct siwifi_vif, wdev);
@@ -2411,6 +2410,7 @@ static int siwifi_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wde
     switch (SIWIFI_VIF_TYPE(siwifi_vif)) {
         case NL80211_IFTYPE_AP_VLAN:
             siwifi_vif = siwifi_vif->ap_vlan.master;
+            fallthrough;
         case NL80211_IFTYPE_AP:
         case NL80211_IFTYPE_P2P_GO:
         case NL80211_IFTYPE_MESH_POINT:
@@ -2574,7 +2574,7 @@ int siwifi_cfg80211_channel_switch(struct wiphy *wiphy,
         goto end;
     } else {
         INIT_WORK(&csa->work, siwifi_csa_finish);
-        cfg80211_ch_switch_started_notify(dev, &csa->chandef, params->count);
+        cfg80211_ch_switch_started_notify(dev, &csa->chandef, 0, params->count, false);
     }
   end:
     siwifi_ipc_elem_var_deallocs(siwifi_hw, &elem);
@@ -2582,7 +2582,7 @@ int siwifi_cfg80211_channel_switch(struct wiphy *wiphy,
 }
 static int
 siwifi_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
-                        const u8 *peer, u8 action_code, u8 dialog_token,
+                        const u8 *peer, int link_id, u8 action_code, u8 dialog_token,
                         u16 status_code, u32 peer_capability,
                         bool initiator, const u8 *buf, size_t len)
 {
@@ -2614,6 +2614,7 @@ siwifi_cfg80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
             printk("%s: only one TDLS link is supported!\n", __func__);
             status_code = WLAN_STATUS_REQUEST_DECLINED;
         }
+        fallthrough;
     case WLAN_TDLS_SETUP_REQUEST:
     case WLAN_TDLS_TEARDOWN:
     case WLAN_TDLS_DISCOVERY_REQUEST:
@@ -3348,7 +3349,7 @@ static void siwifi_get_cur_survey_info(struct wiphy *wiphy, struct wireless_dev 
             printk("vif is not up\n");
         return;
     }
-    if (siwifi_cfg80211_get_channel(wiphy, wdev, &chandef) != 0) {
+    if (siwifi_cfg80211_get_channel(wiphy, wdev, 0, &chandef) != 0) {
         if (siwifi_hw->debug_get_survey == 1)
             printk("Get channel failed !\n");
         return;
@@ -3571,9 +3572,9 @@ static int siwifi_start_driver(struct siwifi_hw *siwifi_hw)
             for (vif_key_index = 0; vif_key_index < MAX_VIF_KEY_NUM; vif_key_index++) {
                 rec_key = &siwifi_vif->rec_key[vif_key_index];
                 if (rec_key->valid && rec_key->params) {
-                    siwifi_cfg80211_add_key(siwifi_hw->wiphy, dev,
+                    siwifi_cfg80211_add_key(siwifi_hw->wiphy, dev, 0,
                             rec_key->key_index, rec_key->pairwise, NULL, rec_key->params);
-                    siwifi_cfg80211_set_default_key(siwifi_hw->wiphy, dev, rec_key->key_index, false, false);
+                    siwifi_cfg80211_set_default_key(siwifi_hw->wiphy, dev, 0, rec_key->key_index, false, false);
                 }
             }
         } else if (SIWIFI_VIF_TYPE(siwifi_vif) == NL80211_IFTYPE_STATION) {
@@ -3620,7 +3621,7 @@ static int siwifi_start_driver(struct siwifi_hw *siwifi_hw)
                     siwifi_kfree(cur->params);
                     rec_key = &cur->rec_key;
                     if (rec_key->valid && rec_key->params) {
-                        siwifi_cfg80211_add_key(siwifi_hw->wiphy, dev,
+                        siwifi_cfg80211_add_key(siwifi_hw->wiphy, dev, 0,
                                                           rec_key->key_index, rec_key->pairwise, (u8 *)(cur->mac_addr),
                                         rec_key->params);
                         siwifi_kfree(rec_key->params);
@@ -3761,7 +3762,6 @@ static struct cfg80211_ops siwifi_cfg80211_ops = {
     .stop_ap = siwifi_cfg80211_stop_ap,
     .set_monitor_channel = siwifi_cfg80211_set_monitor_channel,
     .probe_client = siwifi_cfg80211_probe_client,
-    .mgmt_frame_register = siwifi_cfg80211_mgmt_frame_register,
     .set_wiphy_params = siwifi_cfg80211_set_wiphy_params,
     .set_txq_params = siwifi_cfg80211_set_txq_params,
     .set_tx_power = siwifi_cfg80211_set_tx_power,

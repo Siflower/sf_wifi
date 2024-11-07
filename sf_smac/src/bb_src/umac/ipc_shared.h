@@ -115,13 +115,11 @@ struct la_conf_tag
     u32_l diag_conf;
  u32_l diag_conf1;
 };
-#ifdef CONFIG_SFA28_FULLMASK
 #ifdef CONFIG_SF16A18_WIFI_LB_LA_ENABLE
 #define LA_MEM_LEN (192 * 1024)
 #endif
 #ifdef CONFIG_SF16A18_WIFI_HB_LA_ENABLE
 #define LA_MEM_LEN (128 * 1024)
-#endif
 #endif
 enum
 {

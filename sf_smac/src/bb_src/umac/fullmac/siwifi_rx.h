@@ -118,9 +118,7 @@ struct rx_he_vect
     u32 length :20;
     u32 rsvd_he6 : 4;
 } __packed;
-#ifdef CONFIG_SFA28_FULLMASK
 #define rx_vector_1 rx_vector_1_old
-#endif
 struct rx_vector_2_old {
     u32 rcpi : 8;
     u32 evm1 : 8;
@@ -131,9 +129,7 @@ struct rx_vector_2_old {
     u32 reserved2b_2 : 8;
     u32 reserved2b_3 : 8;
 };
-#ifdef CONFIG_SFA28_FULLMASK
 #define rx_vector_2 rx_vector_2_old
-#endif
 struct phy_channel_info_desc {
     u32 phy_band : 8;
     u32 phy_channel_type : 8;

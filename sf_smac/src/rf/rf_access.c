@@ -8,7 +8,6 @@
 #include "rf_access.h"
 #include "rf_pl_ref.h"
 #define MAX_RETRY_TIME 100
-#ifdef CONFIG_SFA28_FULLMASK
 #define SS_BLANK 0
 #define SS_STANDBY 1
 #define SS_OPERATING 2
@@ -35,7 +34,6 @@
         priv->rf_sw_version1 = value; \
         printk("value : 0x%x\n", value); \
     }
-#endif
 static void __iomem *g_rf_access_base;
 extern struct rf_pl_context *g_rf_pl_ctx;
 #define MAX_TRX_CALIBRATE_CONF 0x3FF
@@ -43,7 +41,6 @@ extern struct rf_pl_context *g_rf_pl_ctx;
 #define REFERENCE_TEMP 50
 #define ABNORMAL_BOOT_TEMP 65
 #define SF_BOOT_TEMP_FILE_NAME "/etc/config/rf_temp"
-#ifdef CONFIG_SFA28_FULLMASK
 enum {
     _GEN_GetVersion = 0x8010,
     _GEN_SetProperty = 0x8042,
@@ -67,7 +64,6 @@ enum {
     _TRX_SetTestDc = 0x82c3,
     _CLK_SetXo = 0x8111,
 };
-#endif
 enum {
     DTEMP_CAL_HB_RXDBBDC = 5,
     DTEMP_CAL_HB_TXDBBDC,
@@ -114,10 +110,8 @@ void ml_apb_write(uint16_t addr, uint16_t data)
         return;
     }
     writew(data, (g_rf_access_base + (addr << 1)));
-#ifdef CONFIG_SFA28_FULLMASK
     if (addr < 0x2300 || addr > 0x23BE)
         return;
-#endif
     udelay(50);
 }
 uint16_t ml_apb_read(uint16_t addr)
@@ -148,9 +142,7 @@ static int8_t ml_apb_wait_cmd_resp(uint16_t rrq, uint16_t cmd_base, uint16_t cmd
         return 0;
     while(i++ < APB_RESPONSE_TIMEOUT) {
         value = ml_apb_read(cmd_base + 0x000A);
-#ifdef CONFIG_SFA28_FULLMASK
         if (((value >> 14) & 0x1) && ((value >> 4) & 0x3FF))
-#endif
             break;
         udelay(100);
     }
@@ -234,7 +226,6 @@ int8_t rf_set_xo_value(uint32_t xo_value)
    return 0;
 }
 EXPORT_SYMBOL_GPL(rf_set_xo_value);
-#ifdef CONFIG_SFA28_FULLMASK
 uint16_t rf_get_property(uint8_t property_id)
 {
     uint16_t tmp;
@@ -527,8 +518,6 @@ int8_t rf_switch_aet_trx(int ate_num)
 #endif
     return 0;
 }EXPORT_SYMBOL_GPL(rf_switch_aet_trx);
-#endif
-#ifdef CONFIG_SFA28_FULLMASK
 int rf_app_calibrate(bool reactive)
 {
     uint16_t cmd_base = ML_CMD_IF_p1_BASE;
@@ -605,11 +594,9 @@ int rf_app_calibrate(bool reactive)
     }
     return 0;
 }
-#endif
 int rf_get_temperature(bool from_lmac)
 {
     int16_t value = -274;
-#ifdef CONFIG_SFA28_FULLMASK
         int8_t resp_args;
         struct rf_pl_context *pl_ctx = g_rf_pl_ctx;
         mutex_lock(&pl_ctx->bb_mtx);
@@ -617,11 +604,9 @@ int rf_get_temperature(bool from_lmac)
         WARN_ON(resp_args != 2);
         value = (ml_apb_read(ML_CMD_P1_COMMAND_HEADER + 0x000C) & 0xFFFF);
         mutex_unlock(&pl_ctx->bb_mtx);
-#endif
     return value;
 }
 EXPORT_SYMBOL_GPL(rf_get_temperature);
-#ifdef CONFIG_SFA28_FULLMASK
 int rf_trx_set_rfappconfig(
                uint8_t conf_in_idel_hb1, uint8_t conf_in_idel_hb2,uint8_t conf_in_rx_hb1, uint8_t conf_in_rx_hb2,
                uint8_t conf_in_tx_hb1, uint8_t conf_in_tx_hb2, uint8_t conf_in_pa_hb1, uint8_t conf_in_pa_hb2,
@@ -660,7 +645,6 @@ int rf_trx_set_rfappconfig(
     }
     return 0;
 }
-#endif
 #ifdef COOLING_TEMP
 static void rf_get_boot_temp(struct rf_pl_context *priv)
 {
@@ -893,7 +877,6 @@ void rf_update_gain_table(uint16_t table_base_addr, uint16_t *table_addr,int gai
 #endif
 int rf_bootup(void)
 {
-#ifdef CONFIG_SFA28_FULLMASK
     int8_t resp_number;
     uint16_t value;
     uint16_t cmd_base = ML_CMD_IF_p1_BASE;
@@ -936,13 +919,11 @@ int rf_bootup(void)
         rf_set_property(HB_RX_STEP2_VALUE,priv->ex_pa_config.hb_rx_step2_value | (priv->ex_pa_config.hb_rx_step2_value << 8));
         rf_set_property(HB_TX_STEP2_DELAY,priv->ex_pa_config.hb_tx_step2_delay);
     }
-#endif
 #ifdef COOLING_TEMP
     rf_get_boot_temp(priv);
 #endif
     return 0;
 }
-#ifdef CONFIG_SFA28_FULLMASK
 int32_t rf_get_trx_status(bool is_hb, uint16_t *trx_state, uint16_t *freq, uint16_t *chbw)
 {
     uint16_t cmd_base = ML_CMD_IF_p1_BASE;
@@ -1047,4 +1028,3 @@ int32_t rf_trx_status_change(int txpower_idx,uint32_t txrxid,bool txrx)
     return 0;
 }
 EXPORT_SYMBOL_GPL(rf_trx_status_change);
-#endif

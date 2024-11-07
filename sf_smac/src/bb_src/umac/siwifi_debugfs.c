@@ -4,6 +4,8 @@
 #include <linux/string.h>
 #include <linux/sort.h>
 #include <linux/rtc.h>
+#include <linux/sched/clock.h>
+#include <linux/vmalloc.h>
 #include "siwifi_debugfs.h"
 #include "siwifi_msg_tx.h"
 #include "siwifi_radar.h"
@@ -1499,7 +1501,7 @@ static ssize_t siwifi_dbgfs_compile_time_read(struct file *file,
     char compile_time[64];
     struct rtc_time tm;
     unsigned long raw_time = CONFIG_COMPILE_TIME + 8 * 3600;
-    rtc_time_to_tm(raw_time, &tm);
+    rtc_time64_to_tm(raw_time, &tm);
     sprintf(compile_time, "%04d-%02d-%02d %02d:%02d:%02d",tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     ret = scnprintf(buf, min_t(size_t, sizeof(buf) - 1, count), "version:%d.%d.%03d, time:%s\n", SIWIFI_VERSION_MAIN_HED, SIWIFI_VERSION_MAIN_MID, SIWIFI_VERSION_MAIN_SUB,compile_time);
     read = simple_read_from_buffer(user_buf, count, ppos, buf, ret);
@@ -3654,7 +3656,9 @@ static ssize_t siwifi_dbgfs_record_read(struct file *file,
                                     size_t count, loff_t *ppos)
 {
     struct siwifi_hw *priv = private_data_proc_debug(file->private_data);
-    char buf[4000];
+    char *buf;
+    int bufsz = 4000;
+    buf = siwifi_kmalloc(bufsz, GFP_ATOMIC);
     int ret, index, first_index;
     ssize_t read;
     unsigned long rem_nsec;
@@ -3686,6 +3690,7 @@ static ssize_t siwifi_dbgfs_record_read(struct file *file,
     ret += scnprintf(&buf[ret], min_t(size_t, sizeof(buf) - 1 - ret, count),
             "\n--end\n");
     read = simple_read_from_buffer(user_buf, count, ppos, buf, ret);
+    siwifi_kfree(buf);
     return read;
 }
 static ssize_t siwifi_dbgfs_record_write(struct file *file,
@@ -4015,12 +4020,13 @@ static ssize_t siwifi_dbgfs_rc_stats_read(struct file *file,
     unsigned int no_samples;
     struct st *st;
     u8 mac[6];
+    int ret;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     if (*ppos)
         return 0;
-    sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+    ret = sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
             &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
-    if (mac == NULL)
+    if (ret != 6)
         return 0;
     sta = siwifi_get_sta(priv, mac);
     if (sta == NULL)
@@ -4103,15 +4109,16 @@ static ssize_t siwifi_dbgfs_rc_fixed_rate_idx_write(struct file *file,
     struct siwifi_sta *sta = NULL;
     struct siwifi_hw *priv = private_data_proc_debug(file->private_data);
     u8 mac[6];
+    int ret;
     char buf[10];
     int fixed_rate_idx = -1;
     union siwifi_rate_ctrl_info rate_config;
     int error = 0;
     size_t len = min_t(size_t, count, sizeof(buf) - 1);
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
-    sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+    ret = sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
             &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
-    if (mac == NULL)
+    if (ret != 6)
         return 0;
     sta = siwifi_get_sta(priv, mac);
     if (sta == NULL)
@@ -4190,12 +4197,13 @@ static ssize_t siwifi_dbgfs_last_rx_read(struct file *file,
     char hist[] = "##################################################";
     int hist_len = sizeof(hist) - 1;
     u8 nrx;
+    int ret;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     if (*ppos)
         return 0;
-    sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+    ret = sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
             &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
-    if (mac == NULL)
+    if (ret != 6)
         return 0;
     sta = siwifi_get_sta(priv, mac);
     if (sta == NULL)
@@ -4236,7 +4244,6 @@ static ssize_t siwifi_dbgfs_last_rx_read(struct file *file,
     fmt = last_rx->format_mod;
     bw = last_rx->ch_bw;
     pre = last_rx->pre_type;
-#ifdef CONFIG_SFA28_FULLMASK
     if (fmt == FORMATMOD_VHT) {
         mcs = last_rx->mcs & 0x0F;
         nss = last_rx->stbc ? last_rx->n_sts / 2 : last_rx->n_sts;
@@ -4263,7 +4270,6 @@ static ssize_t siwifi_dbgfs_last_rx_read(struct file *file,
     } else {
         len += scnprintf(&buf[len], bufsz - len, "              ");
     }
-#endif
     if (nrx > 1) {
         len += scnprintf(&buf[len], bufsz - len, "      %-4d       %d\n",
                          last_rx->rssi1, last_rx->rssi1);
@@ -4289,7 +4295,7 @@ static ssize_t siwifi_dbgfs_last_rx_read(struct file *file,
         {
             len += scnprintf(&buf[len], bufsz - len,"the working mode :5g_ac\n");
         }
-        else if (sta->rec_info.params->supported_rates_len == 8)
+        else if (sta->rec_info.params->link_sta_params.supported_rates_len == 8)
         {
             if (sta->ht)
             {
@@ -4304,7 +4310,7 @@ static ssize_t siwifi_dbgfs_last_rx_read(struct file *file,
         {
             len += scnprintf(&buf[len], bufsz - len,"the working mode :2.4g_n\n");
         }
-        else if (sta->rec_info.params->supported_rates_len == 4)
+        else if (sta->rec_info.params->link_sta_params.supported_rates_len == 4)
         {
             len += scnprintf(&buf[len], bufsz - len,"the working mode :2.4g_b\n");
         }
@@ -4324,9 +4330,10 @@ static ssize_t siwifi_dbgfs_last_rx_write(struct file *file,
     struct siwifi_sta *sta = NULL;
     struct siwifi_hw *priv = private_data_proc_debug(file->private_data);
     u8 mac[6];
-    sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+    int ret;
+    ret = sscanf(file->f_path.dentry->d_parent->d_iname, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
            &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
-    if (mac == NULL)
+    if (ret != 6)
         return 0;
     sta = siwifi_get_sta(priv, mac);
     if (sta == NULL)
@@ -4732,8 +4739,8 @@ static ssize_t siwifi_dbgfs_send_frame_custom_write(struct file *file,
     char frame_name[20];
     void *pkt_buf = NULL;
     uint8_t *payload = NULL;
-    loff_t pkt_bufsize = 0x1000;
-    loff_t pkt_filesize = 0;
+    size_t pkt_bufsize = 0x1000;
+    size_t pkt_filesize = 0;
     int ret;
     int error;
     int filelen;
@@ -4765,7 +4772,7 @@ static ssize_t siwifi_dbgfs_send_frame_custom_write(struct file *file,
                     memcpy(pkt_path, default_path, sizeof(default_path));
                     printk("invalid path");
                 }
-                if ((ret = kernel_read_file_from_path(pkt_path, &pkt_buf, &pkt_filesize, pkt_bufsize, READING_MODULE)) >= 0) {
+                if ((ret = kernel_read_file_from_path(pkt_path, 0, &pkt_buf, pkt_filesize, &pkt_bufsize, READING_MODULE)) >= 0) {
                     filelen = pkt_filesize;
                     if ((filelen / 3) == 0) {
                         printk("payload length is 0, use example_payload");

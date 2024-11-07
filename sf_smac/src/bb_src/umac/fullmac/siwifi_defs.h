@@ -367,8 +367,8 @@ static inline const u8 *siwifi_sta_addr(struct siwifi_sta *siwifi_sta) {
 struct siwifi_stats {
     int cfm_balance[NX_TXQ_CNT];
     unsigned long last_rx, last_tx;
-    int ampdus_tx[IEEE80211_MAX_AMPDU_BUF];
-    int ampdus_rx[IEEE80211_MAX_AMPDU_BUF];
+    int ampdus_tx[IEEE80211_MAX_AMPDU_BUF_HT];
+    int ampdus_rx[IEEE80211_MAX_AMPDU_BUF_HT];
     int ampdus_rx_map[4];
     u32 ampdus_rx_miss;
 #ifdef CONFIG_SIWIFI_SPLIT_TX_BUF
@@ -891,7 +891,7 @@ int siwifi_check_skb_is_dhcp(struct sk_buff *skb);
 void siwifi_update_src_filter(struct siwifi_vif *siwifi_vif, unsigned char *src_mac);
 struct siwifi_src_filter *siwifi_src_filter_hash_search(struct siwifi_vif *siwifi_vif, unsigned char *src_mac);
 void siwifi_src_filter_hash_free(struct siwifi_vif *siwifi_vif);
-void src_filter_aging(unsigned long ptr);
+void src_filter_aging(struct timer_list *timer);
 void set_repeater_status(struct siwifi_vif *siwifi_vif, u8 status);
 int siwifi_set_assoc_req_insert_info(struct siwifi_hw *siwifi_hw, char *insert_info, int insert_length);
 int siwifi_channel_recovery_check(struct siwifi_hw *siwifi_hw);

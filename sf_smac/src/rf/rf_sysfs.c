@@ -299,6 +299,7 @@ static ssize_t sf_wifi_rf_dbgfs_dumpcmd_write(struct file *file,
                 size_t count,
                 loff_t *ppos)
 {
+#if 0
     struct rf_pl_context *pl_ctx = file->private_data;
     char buf[32];
     mm_segment_t fs;
@@ -407,6 +408,7 @@ static ssize_t sf_wifi_rf_dbgfs_dumpcmd_write(struct file *file,
     }
     mutex_unlock(&pl_ctx->bb_mtx);
     filp_close(fp, NULL);
+#endif
     return count;
 }
 DEBUGFS_WRITE_FILE_OPS(dumpcmd);
@@ -462,7 +464,6 @@ static ssize_t sf_wifi_rf_dbgfs_temperature_read(struct file *file,
     return read;
 }
 DEBUGFS_READ_FILE_OPS(temperature);
-#ifdef CONFIG_SFA28_FULLMASK
 static ssize_t sf_wifi_rf_dbgfs_temperature_surface_read(struct file *file,
         char __user *user_buf,
         size_t count,
@@ -501,7 +502,6 @@ static ssize_t sf_wifi_rf_dbgfs_temperature_surface_read(struct file *file,
     return read;
 }
 DEBUGFS_READ_FILE_OPS(temperature_surface);
-#endif
 #ifdef COOLING_TEMP
 static ssize_t sf_wifi_rf_dbgfs_cooling_temp_read(struct file *file,
         char __user *user_buf,
@@ -582,7 +582,6 @@ static ssize_t sf_wifi_rf_dbgfs_thermal_on_read(struct file *file,
 }
 DEBUGFS_READ_FILE_OPS(thermal_on);
 #endif
-#ifdef CONFIG_SFA28_FULLMASK
 static ssize_t sf_wifi_rf_dbgfs_property_read(struct file *file,
         char __user *user_buf,
         size_t count,
@@ -636,7 +635,6 @@ static ssize_t sf_wifi_rf_dbgfs_property_write(struct file *file,
     return count;
 }
 DEBUGFS_READ_WRITE_FILE_OPS(property);
-#endif
 static ssize_t sf_wifi_rf_dbgfs_rf_switch_trx_write(struct file *file,
                                         const char __user *user_buf,
                                         size_t count, loff_t *ppos)
@@ -891,7 +889,6 @@ static ssize_t sf_wifi_rf_dbgfs_cmd_write(struct file *file,
     return count;
 }
 DEBUGFS_WRITE_FILE_OPS(cmd);
-#ifdef CONFIG_SFA28_FULLMASK
 #define TS_UNINITIALIZED 0
 #define TS_PARKED 1
 #define TS_PREPARED 2
@@ -937,7 +934,6 @@ static ssize_t sf_wifi_rf_dbgfs_trx_status_read(struct file *file,
     return read;
 }
 DEBUGFS_READ_FILE_OPS(trx_status);
-#endif
 int sf_wifi_rf_sysfs_register(struct platform_device *pdev, char *parent)
 {
     struct rf_pl_context *pl_ctx;
@@ -960,10 +956,8 @@ int sf_wifi_rf_sysfs_register(struct platform_device *pdev, char *parent)
     DEBUGFS_ADD_FILE(temperature, dir_drv, S_IRUSR);
     DEBUGFS_ADD_FILE(rf_hw_version, dir_drv, S_IRUSR);
      DEBUGFS_ADD_FILE(rf_switch_trx, dir_drv, S_IWUSR | S_IRUSR);
-#ifdef CONFIG_SFA28_FULLMASK
  DEBUGFS_ADD_FILE(temperature_surface, dir_drv, S_IRUSR);
     DEBUGFS_ADD_FILE(property, dir_drv, S_IWUSR | S_IRUSR);
-#endif
 #ifdef COOLING_TEMP
     DEBUGFS_ADD_FILE(cooling_temp, dir_drv, S_IWUSR | S_IRUSR);
     DEBUGFS_ADD_FILE(thermal_on, dir_drv, S_IRUSR);
@@ -981,9 +975,7 @@ int sf_wifi_rf_sysfs_register(struct platform_device *pdev, char *parent)
     DEBUGFS_ADD_FILE(regw, dir_reg, S_IWUSR | S_IRUSR);
     DEBUGFS_ADD_FILE(dumpreg, dir_reg, S_IRUSR);
     DEBUGFS_ADD_FILE(setxo, dir_drv, S_IWUSR);
-#ifdef CONFIG_SFA28_FULLMASK
     DEBUGFS_ADD_FILE(trx_status, dir_drv, S_IRUSR);
-#endif
     return 0;
 err:
     if(dir_reg)

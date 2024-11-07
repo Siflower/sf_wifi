@@ -1,4 +1,5 @@
 #include <net/mac80211.h>
+#include <linux/sched/clock.h>
 #include "siwifi_defs.h"
 #include "siwifi_trace.h"
 #include "siwifi_tx.h"
@@ -546,6 +547,7 @@ void siwifi_txq_vif_for_each_sta(struct siwifi_hw *siwifi_hw, struct siwifi_vif 
     }
     case NL80211_IFTYPE_AP_VLAN:
         siwifi_vif = siwifi_vif->ap_vlan.master;
+        fallthrough;
     case NL80211_IFTYPE_AP:
     case NL80211_IFTYPE_MESH_POINT:
     case NL80211_IFTYPE_P2P_GO:

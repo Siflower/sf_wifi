@@ -14,9 +14,7 @@
 #include <linux/thermal.h>
 #include <linux/uaccess.h>
 #include <linux/fs.h>
-#ifdef CONFIG_SFA28_FULLMASK
-#include <sf19a28.h>
-#endif
+#include <linux/reset.h>
 #ifdef COOLING_TEMP
 #include <sfax8_thermal.h>
 #endif
@@ -28,38 +26,29 @@
 #endif
 #include "rf_pl_ref.h"
 #include "rf_access.h"
-#ifdef CONFIG_SFA28_FULLMASK
 #define SF_RF_MODULE_NAME "sf16a28_rf"
-#endif
 #define BOOT_FINISH_WITH_IRQ 
 #define SF_RF_FW_NAME "rf_pmem.bin"
 #define SF_RF_DEFAULT_REG_NAME "rf_default_reg.bin"
 #define SF_RF_XDMA_REG_NAME "rf_xdma_reg.bin"
 #define SF_RF_EXPA_CONFIG "sf_rf_expa_config.ini"
 #define SF_RF_TRX_PATH_CONFIG "rf_trx_path.ini"
-#ifdef CONFIG_SFA28_FULLMASK
 #define IRQ_SOURCE ML_CMD_P1_IRQ_SOURCE
 #define HB_IRQ_ENABLE ML_CMD_P1_IRQ_ENABLE
 #define LB_IRQ_ENABLE ML_CMD_P1_IRQ_ENABLE
-#endif
 #define UMASK_RF_IRQ 0x0CFF
 #define IRQ_HK_TEMP 0
 #define IRQ_HK_APP_STATUS 3
-#ifdef CONFIG_SFA28_FULLMASK
 #define IRQ_HK_TRX_STATUS_HB SF_RF_IRQ_SOURCE_STOP_REQ_HB
 #define IRQ_HK_TRX_STATUS_LB SF_RF_IRQ_SOURCE_STOP_REQ_LB
-#endif
 #define SILENCE_CALIBRATION 
 #ifdef CONFIG_SF16A18_WIFI_ATE_TOOLS
 int ate_aetset = 0;
 EXPORT_SYMBOL_GPL(ate_aetset);
 #endif
-#ifdef CONFIG_SFA28_FULLMASK
 int thermal_on = 1;
 module_param_named(thermal_on,thermal_on,int,S_IRUGO);
 MODULE_PARM_DESC(thermal_on,"ENABLE THERMAL (DEFAULT :1)\n");
-#endif
-#ifdef CONFIG_SFA28_FULLMASK
 enum SF_RF_IRQ_SOURCE{
     SF_RF_IRQ_SOURCE_BOOT_ERROR = 0,
     SF_RF_IRQ_SOURCE_CAL_REQ_SYS = 3,
@@ -73,7 +62,6 @@ enum SF_RF_IRQ_SOURCE{
 };
 #define SF_RF_CALIBRATION_MASK (0x1 << SF_RF_IRQ_SOURCE_BOOT_ERROR | 0x1 << SF_RF_IRQ_SOURCE_CAL_REQ_SYS | 0x1 << SF_RF_IRQ_SOURCE_CAL_REQ_CLK \
         | 0x1 << SF_RF_IRQ_SOURCE_STOP_REQ_LB | 0x1 << SF_RF_IRQ_SOURCE_STOP_REQ_HB)
-#endif
 void rfchip_hot(uint32_t timeout)
 {
     int i;
@@ -302,7 +290,6 @@ CLEAN_UP:
     return 0;
 }
 #endif
-#ifdef CONFIG_SFA28_FULLMASK
 static int sf_wifi_int_handler(struct rf_pl_context *priv)
 {
     int ret = 0;
@@ -326,7 +313,6 @@ static int sf_wifi_int_handler(struct rf_pl_context *priv)
     }
     return ret;
 }
-#endif
 void sf_wifi_rf_calibration_work(struct work_struct *work)
 {
     int ret;
@@ -346,11 +332,9 @@ void sf_wifi_rf_calibration_work(struct work_struct *work)
 #ifdef PROFILING_CALIBRATION_TIME
     start = jiffies;
 #endif
-#ifdef CONFIG_SFA28_FULLMASK
     ret = sf_wifi_int_handler(priv);
     if(ret == RF_RET_AGAIN)
         goto AGAIN;
-#endif
 #ifdef PROFILING_CALIBRATION_TIME
     dur = jiffies_to_msecs(jiffies - start);
     printk("the calibration take %d ms\n", dur);
@@ -368,18 +352,6 @@ AGAIN:
     printk("bb ask us to do calibration again!\n");
     schedule_delayed_work(&priv->cali_work, msecs_to_jiffies(500));
     return;
-}
-void sf_wifi_rf_platform_reset(struct platform_device *pdev, bool init)
-{
-    u32 value;
-    if (init) {
-        release_reset(SF_CATIP_SOFT_RESET);
-        value = get_module_clk_gate(SF_CATIP_SOFT_RESET, 0);
-        value &= 0xFE;
-        set_module_clk_gate(SF_CATIP_SOFT_RESET, value, 0);
-    } else {
-        hold_reset(SF_CATIP_SOFT_RESET);
-    }
 }
 #ifdef DUMP_IRQ_STATUS
 static void sf_dump_llc_cmd_buffer(void)
@@ -402,7 +374,6 @@ static void sf_dump_llc_cmd_buffer(void)
     }
 }
 #endif
-#ifdef CONFIG_SFA28_FULLMASK
 static irqreturn_t sf_wifi_rf_irq_handle(int irq, void *params)
 {
     struct platform_device *pdev;
@@ -445,7 +416,6 @@ static irqreturn_t sf_wifi_rf_irq_handle(int irq, void *params)
     priv->irq_num++;
     return IRQ_HANDLED;
 }
-#endif
 static int sf_wifi_rf_irqs_register(struct platform_device *pdev, struct rf_pl_context *priv)
 {
     int ret;
@@ -498,7 +468,6 @@ static uint8_t sf_parser_value_from_cfg_file(const struct firmware *config_fw, c
     printk("get %s=%02x\n", str, (uint8_t)(value & 0xFF));
     return (uint8_t)(value & 0xFF);
 }
-#ifdef CONFIG_SFA28_FULLMASK
 static int sf_rf_parse_expa_configfile(struct platform_device *pdev, struct rf_pl_context *priv,
                 const char *filename)
 {
@@ -564,7 +533,6 @@ static int sf_wifi_rf_get_trx_path_cfg(struct platform_device *pdev, struct rf_p
     release_firmware(config_fw);
     return 0;
 }
-#endif
 static int sf_wifi_rf_ex_pa_check(struct platform_device *pdev, struct rf_pl_context *priv)
 {
     int gpio_num, ret, level;
@@ -619,7 +587,7 @@ static int sf_wifi_rf_ex_pa_check(struct platform_device *pdev, struct rf_pl_con
         printk("gpio %d,of_get_named_gpio failed! Do not support external PA\n", gpio_num);
         return 0;
     }
-    ret = devm_gpio_request(&(pdev->dev), gpio_num, NULL);
+    ret = gpio_request(gpio_num, NULL);
     if (ret == -16) {
         printk("gpio %d is busy, which is used by other device\n", gpio_num);
         return 0;
@@ -631,7 +599,7 @@ static int sf_wifi_rf_ex_pa_check(struct platform_device *pdev, struct rf_pl_con
     ret = gpio_direction_input((unsigned)gpio_num);
     if (ret) {
         printk("error %d: gpio_direction_input failed!\n", ret);
-        devm_gpio_free(&(pdev->dev), gpio_num);
+        gpio_free(gpio_num);
         return ret;
     }
     level = gpio_get_value((unsigned)gpio_num);
@@ -650,7 +618,6 @@ INIT_EXPA:
         ret = sf_rf_parse_expa_configfile(pdev, priv, SF_RF_EXPA_CONFIG);
         if (ret) {
             printk("error %d!!!,can not get config from sf_rf_expa_config.ini, so use default value\n", ret);
-#ifdef CONFIG_SFA28_FULLMASK
             priv->ex_pa_config.lb1_idle_cfg = 0x00;
             priv->ex_pa_config.lb1_rx_cfg = 0x06;
             priv->ex_pa_config.lb1_tx_cfg = 0x04;
@@ -667,11 +634,10 @@ INIT_EXPA:
             priv->ex_pa_config.hb2_rx_cfg = 0x06;
             priv->ex_pa_config.hb2_tx_cfg = 0x04;
             priv->ex_pa_config.hb2_pa_cfg = 0x01;
-#endif
         }
     }
     if (gpio_requested)
-        devm_gpio_free(&(pdev->dev), gpio_num);
+        gpio_free(gpio_num);
     printk("gpio %d level is %d, hb_ex_pa_exist %d, lb_ex_pa_exist %d\n", gpio_num, level, priv->hb_ex_pa_exist, priv->lb_ex_pa_exist);
     return 0;
 }
@@ -695,17 +661,13 @@ static int sf_wifi_rf_fw_load(struct platform_device *pdev, struct rf_pl_context
     WARN_ON(fw->size == 0);
     WARN_ON((fw->size % 2) != 0);
     printk("Now copy %s firmware with size %d, @ = 0x4002\n", SF_RF_FW_NAME, fw->size);
-#ifdef CONFIG_SFA28_FULLMASK
     value = ml_apb_read(MISC_DEBUG);
     ml_apb_write(MISC_DEBUG, (0xFFF7 & value));
     ml_apb_write(PROG_MEM_BASE + 1, 0x0003);
     ml_apb_write(PROG_MEM_BASE, 0);
-#endif
     src = (uint16_t *)fw->data;
     for (i = 0; i < fw->size; i += 2)
-#ifdef CONFIG_SFA28_FULLMASK
         ml_apb_write(PROG_MEM_BASE + 2, *src++);
-#endif
     release_firmware(fw);
     err = request_firmware(&fw, SF_RF_DEFAULT_REG_NAME, &(pdev->dev));
     if (err) {
@@ -723,13 +685,9 @@ static int sf_wifi_rf_fw_load(struct platform_device *pdev, struct rf_pl_context
     }
     release_firmware(fw);
 #ifdef UPDATE_GAIN_TABLE
-#ifdef CONFIG_SFA28_FULLMASK
 #endif
-#endif
-#ifdef CONFIG_SFA28_FULLMASK
     priv->fw_loaded = 1;
     msleep(10);
-#endif
     return 0;
 }
 int sf_wifi_rf_get_feature(int8_t band_type)
@@ -894,54 +852,43 @@ int sf_wifi_rf_bb_unregister(int8_t band_type)
 EXPORT_SYMBOL_GPL(sf_wifi_rf_bb_unregister);
 int sf_wifi_rf_os_resources_free(struct platform_device *pdev, struct rf_pl_context *priv)
 {
-    struct resource *res;
     if (priv->lp_clk_timer_enable) {
         del_timer_sync(&priv->lp_clk_timer);
-        if (priv->lp_clk_timer_gpio)
-            devm_gpio_free(&(pdev->dev), priv->lp_clk_timer_gpio_num);
     }
     cancel_delayed_work_sync(&priv->cali_work);
     mutex_destroy(&priv->bb_mtx);
-    iounmap(priv->base);
-    priv->base = NULL;
-    res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-    if(res)
-        release_mem_region(res->start, resource_size(res));
     platform_set_drvdata(pdev, NULL);
     g_rf_pl_ctx = NULL;
     return 0;
 }
 int sf_wifi_rf_os_resources_get(struct platform_device *pdev, struct rf_pl_context **p_priv)
 {
-    struct resource *res;
     struct rf_pl_context *priv;
     int ret;
-    res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-    if(!res){
-        printk("no resource in dts file!\n");
-        return -ENODEV;
-    }
-    if (!request_mem_region(res->start, resource_size(res), pdev->name)){
-        printk("can not request mem region from 0x%x with the size 0x%x\n", res->start, resource_size(res));
-        return -EBUSY;
-    }
     priv = devm_kzalloc(&pdev->dev, sizeof(struct rf_pl_context), GFP_KERNEL);
     if(!priv){
         printk("can not allocate memory!\n");
-        ret = -ENOMEM;
-        goto error_alloc;
+        return -ENOMEM;
     }
-    priv->base = ioremap(res->start, resource_size(res));
-    if(!priv->base){
-        printk("can not remap the sources!\n");
-        ret = -EINVAL;
-        goto error_alloc;
+    priv->base = devm_platform_ioremap_resource(pdev, 0);
+    if(IS_ERR(priv->base)) {
+ return dev_err_probe(&pdev->dev, PTR_ERR(priv->base),
+  "failed to remap memory region.\n");
+    }
+    ret = devm_clk_bulk_get_all(&pdev->dev, &priv->clks);
+    if (ret < 3) {
+        return dev_err_probe(&pdev->dev, ret, "failed to get all clocks\n");
+        return ret;
+    }
+    priv->num_clks = ret;
+    priv->rstc = devm_reset_control_get(&pdev->dev, NULL);
+    if (IS_ERR(priv->rstc)) {
+        return PTR_ERR(priv->rstc);
     }
     priv->irq = platform_get_irq(pdev, 0);
     if(priv->irq == -ENXIO){
         printk("can not get the irq from system!\n");
-        ret = -ENXIO;
-        goto error_io;
+        return -ENXIO;
     }
     rf_set_access_base(priv->base);
     mutex_init(&priv->bb_mtx);
@@ -953,18 +900,13 @@ int sf_wifi_rf_os_resources_get(struct platform_device *pdev, struct rf_pl_conte
  priv->cooling_temp_set.flag = true;
 #endif
     printk("%s:\n", __func__);
-    printk(" priv->base : %p\n", priv->base);
+    printk(" priv->base : %px\n", priv->base);
     printk(" priv->irq : %d\n", priv->irq);
     *p_priv = priv;
     priv->dev = &pdev->dev;
     g_rf_pl_ctx = priv;
     platform_set_drvdata(pdev, priv);
     return 0;
-error_io:
-    iounmap(priv->base);
-error_alloc:
-    release_mem_region(res->start, resource_size(res));
-    return ret;
 }
 #ifdef CONFIG_SF16A18_RF_SYSFS_DEBUG
 void sf_wifi_rf_force_calibrate(uint32_t type)
@@ -1220,7 +1162,6 @@ static int sfax8_rf_set_cur_state(void *data,unsigned long state)
     struct sfax8_rf_thermal_state *rs = data;
     struct rf_pl_context *pl_ctx = g_rf_pl_ctx;
     struct rf_cooling_temp_set *temp_set = &(pl_ctx->cooling_temp_set);
-#ifdef CONFIG_SFA28_FULLMASK
     int change_power = 0;
     int change_power_lb = 0;
  if (state > 24)
@@ -1254,7 +1195,6 @@ static int sfax8_rf_set_cur_state(void *data,unsigned long state)
         }
     }
     mutex_unlock(&pl_ctx->bb_mtx);
-#endif
     return 0;
 }
 static struct sfax8_zone_device_ops sfax8_rf_zone_ops = {
@@ -1308,11 +1248,17 @@ int sf_wifi_rf_probe(struct platform_device *pdev)
         printk("sf_wifi_rf_os_resources_get failed, %d!\n", ret);
         return ret;
     }
-    sf_wifi_rf_platform_reset(pdev, 1);
+    ret = clk_bulk_prepare_enable(priv->num_clks, priv->clks);
+    if (ret < 0) {
+        dev_err(&pdev->dev, "failed to enable all clocks: %d\n", ret);
+        goto error_release_resources;
+    }
+    dev_warn(&pdev->dev, "%s: %d\n", __FUNCTION__, __LINE__);
+    reset_control_deassert(priv->rstc);
     if((ret = sf_wifi_rf_irqs_register(pdev, priv)))
     {
         printk("sf_wifi_rf_register_irqs failed, ret = %d!\n", ret);
-        goto error_release_resources;
+        goto error_clk;
     }
     if ((ret = sf_wifi_rf_ex_pa_check(pdev, priv))) {
         printk("sf_wifi_rf_ex_pa_check failed, ret = %d!\n", ret);
@@ -1325,7 +1271,6 @@ int sf_wifi_rf_probe(struct platform_device *pdev)
     if ((ret = sf_wifi_rf_cali_config_get(pdev, priv))) {
         printk("sf_wifi_rf_cali_config_get failed, ret = %d!\n", ret);
     }
-#ifdef CONFIG_SFA28_FULLMASK
 #define rf_BOOTUP_RETRY_MAX 20
     if ((ret = sf_wifi_rf_get_trx_path_cfg(pdev, priv))) {
         printk("sf_wifi_rf_get_trx_path_cfg failed, ret = %d!\n", ret);
@@ -1337,10 +1282,10 @@ int sf_wifi_rf_probe(struct platform_device *pdev)
         temp = rf_get_temperature(0);
         printk("temperature is %d\n", temp);
         sf_wifi_rf_irqs_unregister(pdev, priv);
-        sf_wifi_rf_platform_reset(pdev, 0);
+        reset_control_assert(priv->rstc);
         priv->fw_loaded = 0;
         msleep(1);
-        sf_wifi_rf_platform_reset(pdev, 1);
+        reset_control_deassert(priv->rstc);
         if ((ret = sf_wifi_rf_fw_load(pdev, priv))) {
             i++;
             continue;
@@ -1358,7 +1303,6 @@ int sf_wifi_rf_probe(struct platform_device *pdev)
         goto error_irqs_unregister;
     }
     priv->booted = 1;
-#endif
 #ifdef COOLING_TEMP
     if (priv->cooling_temp_set.thermal_on) {
 #ifdef CONFIG_SF16A18_WIFI_ATE_TOOLS
@@ -1397,6 +1341,8 @@ int sf_wifi_rf_probe(struct platform_device *pdev)
      return 0;
 error_irqs_unregister:
     sf_wifi_rf_irqs_unregister(pdev, priv);
+error_clk:
+    clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 error_release_resources:
     sf_wifi_rf_os_resources_free(pdev, priv);
     return ret;
@@ -1414,13 +1360,14 @@ int sf_wifi_rf_remove(struct platform_device *pdev)
     sf_wifi_rf_sysfs_unregister(pdev);
 #endif
     sf_wifi_rf_irqs_unregister(pdev, priv);
+    reset_control_assert(priv->rstc);
+    clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
     sf_wifi_rf_os_resources_free(pdev, priv);
-    sf_wifi_rf_platform_reset(pdev, 0);
     return 0;
 }
 static const struct of_device_id sf_wifi_rf_of_match[] = {
     {
-        .compatible = "siflower,sf16a18-wifi-rf",
+        .compatible = "siflower,sf19a2890-rf",
     },
     {},
 };
@@ -1445,7 +1392,5 @@ module_init(init_sf_wifi_rf);
 module_exit(exit_sf_wifi_rf);
 MODULE_DEVICE_TABLE(of, sf_wifi_rf_of_match);
 MODULE_LICENSE("GPL");
-#ifdef CONFIG_SFA28_FULLMASK
 MODULE_DESCRIPTION("Wireless rf drivers for sf16a28");
-#endif
 MODULE_VERSION(RF_VERSION);

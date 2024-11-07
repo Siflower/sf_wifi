@@ -718,6 +718,7 @@ static struct sk_buff *siwifi_ioctl_internal_build_skb(struct siwifi_hw *siwifi_
         case 1:
             memcpy(tmp, &siwifi_hw->ate_env.conf.pkg.payload, ate_pack->frame_len);
             printk("%s: == %d line == fill whole frame payload from array\n", __func__, __LINE__);
+            break;
         default:
             for (i = 0; i < ate_pack->frame_len; i++) {
                 tmp[i] = i % 50;
@@ -1286,11 +1287,8 @@ static int siwifi_ioctl_do_save_data_to_mtd(struct siwifi_hw *siwifi_hw,
     if (!buf)
         return -ENOMEM;
     mtd_read(mtd, 0, mtd->erasesize, &retlen, buf);
-    ei.mtd = mtd;
-    ei.callback = NULL;
     ei.addr = 0;
     ei.len = mtd->erasesize;
-    ei.priv = 0;
     mtd_erase(mtd, &ei);
     memcpy(p_offset,(&cfg->data[0]),4);
     offset = siwifi_char_to_int(&p_offset[0]);
@@ -1848,11 +1846,6 @@ static int siwifi_ioctl_do_set_frame_control(struct siwifi_hw *siwifi_hw,
         status = SIWIFI_IOCTL_RET_FAILURE;
         goto DONE;
     }
-    if (!cfg->data) {
-        printk("freamble not set!\n");
-        status = SIWIFI_IOCTL_RET_FAILURE;
-        goto DONE;
-    }
     siwifi_str4_to_int16(tmp_data, tmp_pre);
     siwifi_hw->ate_env.conf.machdr.fc = tmp_data[0];
 #ifdef DEBUG_PRINTK
@@ -1870,11 +1863,6 @@ static int siwifi_ioctl_do_set_duration_id(struct siwifi_hw *siwifi_hw,
     int tmp_data[] = {0x0000};
     if (!siwifi_hw->ate_env.ate_start) {
         printk("ate not started!\n");
-        status = SIWIFI_IOCTL_RET_FAILURE;
-        goto DONE;
-    }
-    if (!cfg->data) {
-        printk("freamble not set!\n");
         status = SIWIFI_IOCTL_RET_FAILURE;
         goto DONE;
     }
@@ -1971,11 +1959,6 @@ static int siwifi_ioctl_do_set_seq_ctrl(struct siwifi_hw *siwifi_hw,
         status = SIWIFI_IOCTL_RET_FAILURE;
         goto DONE;
     }
-    if (!cfg->data) {
-        printk("freamble not set!\n");
-        status = SIWIFI_IOCTL_RET_FAILURE;
-        goto DONE;
-    }
     siwifi_str4_to_int16(tmp_data, tmp_pre);
     siwifi_hw->ate_env.conf.machdr.seqc = tmp_data[0];
 #ifdef DEBUG_PRINTK
@@ -2059,11 +2042,8 @@ static int siwifi_ioctl_do_save_to_mtd(struct siwifi_hw *siwifi_hw,
     if (!buf)
         return -ENOMEM;
     mtd_read(mtd, 0, mtd->erasesize, &retlen, buf);
-    ei.mtd = mtd;
-    ei.callback = NULL;
     ei.addr = 0;
     ei.len = mtd->erasesize;
-    ei.priv = 0;
     mtd_erase(mtd, &ei);
     if (!((buf[xo_config_offset] == 'X' && buf[xo_config_offset + 1] == 'O') || (buf[xo_config_offset] == 'V' && buf[xo_config_offset + 1] == '2')||(buf[xo_config_offset] == 'V' && buf[xo_config_offset + 1] == '3')||(buf[xo_config_offset] == 'V' && buf[xo_config_offset + 1] == '4'))) {
         buf[xo_config_offset] = 'X';
@@ -2402,7 +2382,6 @@ static int siwifi_ioctl_do_ate_macbypass_tx_start(struct siwifi_hw *siwifi_hw,
     }
     if(siwifi_send_set_channel_for_macbypass_tx(siwifi_hw, 0, &cfm, chandef))
         return -EIO;
-#ifdef CONFIG_SFA28_FULLMASK
     base_addr=WIFI_BASE_ADDR(siwifi_hw->mod_params->is_hb);
     mdelay(100);
     REG_PL_WR(MACBYP_CLKEN_ADDR(siwifi_hw->mod_params->is_hb),1);
@@ -2464,7 +2443,6 @@ static int siwifi_ioctl_do_ate_macbypass_tx_start(struct siwifi_hw *siwifi_hw,
     udelay(100);
     REG_PL_WR(MACBYP_CTRL_ADDR(siwifi_hw->mod_params->is_hb), 0x301);
     siwifi_hw->ate_env.tx_macbypass_start = true;
-#endif
 DONE:
     siwifi_ioctl_response_to_user(cfg, iwr, status);
     return status;
@@ -2484,12 +2462,10 @@ static int siwifi_ioctl_do_ate_macbypass_tx_stop(struct siwifi_hw *siwifi_hw,
         status = SIWIFI_IOCTL_RET_FAILURE;
         goto DONE;
     }
-#ifdef CONFIG_SFA28_FULLMASK
     REG_PL_WR(MACBYP_CTRL_ADDR(siwifi_hw->mod_params->is_hb), 0);
     REG_PL_WR(REG_MACBYPASS_BASE_ADDR(siwifi_hw->mod_params->is_hb) + 0x0888, 0x1111);
     udelay(100);
     REG_PL_WR(REG_MACBYPASS_BASE_ADDR(siwifi_hw->mod_params->is_hb) + 0x0888, 0);
-#endif
     siwifi_hw->ate_env.tx_macbypass_start = false;
 DONE:
     siwifi_ioctl_response_to_user(cfg, iwr, status);
@@ -2582,9 +2558,7 @@ DONE:
     siwifi_ioctl_response_to_user(cfg, iwr, status);
     return status;
 }
-#ifdef CONFIG_SFA28_FULLMASK
 extern int8_t rf_set_test_dc(bool band,uint8_t path,bool status,uint16_t dcre,uint16_t dcim);
-#endif
 static int siwifi_ioctl_do_ate_tx_tone_start(struct siwifi_hw *siwifi_hw,
         struct siwifi_ioctl_cfg *cfg,
         struct iwreq *iwr)
@@ -2607,7 +2581,6 @@ static int siwifi_ioctl_do_ate_tx_tone_start(struct siwifi_hw *siwifi_hw,
         status = SIWIFI_IOCTL_RET_FAILURE;
         goto DONE;
     }
-#ifdef CONFIG_SFA28_FULLMASK
     printk("path set %d\n",txvector.antennaSet);
     if (siwifi_hw->ate_env.conf.chandef.chan->center_freq <= 3072) {
         rf_trx_status_change( siwifi_hw->ate_env.siwifi_vif->txpower_idx,1,0);
@@ -2617,7 +2590,6 @@ static int siwifi_ioctl_do_ate_tx_tone_start(struct siwifi_hw *siwifi_hw,
         rf_trx_status_change( siwifi_hw->ate_env.siwifi_vif->txpower_idx,0,0);
         rf_set_test_dc(0,txvector.antennaSet,1,200,0);
     }
-#endif
 DONE:
     siwifi_ioctl_response_to_user(cfg, iwr, status);
     return status;
@@ -2635,7 +2607,6 @@ static int siwifi_ioctl_do_ate_tx_tone_stop(struct siwifi_hw *siwifi_hw,
         status = SIWIFI_IOCTL_RET_FAILURE;
         goto DONE;
     }
-#ifdef CONFIG_SFA28_FULLMASK
     if (siwifi_hw->ate_env.conf.chandef.chan->center_freq <= 3072) {
         rf_set_test_dc(1,txvector.antennaSet,0,0,0);
         rf_trx_status_change( siwifi_hw->ate_env.siwifi_vif->txpower_idx,1,1);
@@ -2644,7 +2615,6 @@ static int siwifi_ioctl_do_ate_tx_tone_stop(struct siwifi_hw *siwifi_hw,
         rf_set_test_dc(0,txvector.antennaSet,0,0,0);
         rf_trx_status_change( siwifi_hw->ate_env.siwifi_vif->txpower_idx,0,1);
     }
-#endif
     if (siwifi_hw->ate_env.vif_ctx_flag) {
         struct me_ate_tools_op_cfm op_cfm;
         if (siwifi_send_me_ate_tools_op(siwifi_hw, NULL, &op_cfm, DELETE_CHANTX_OP)) {

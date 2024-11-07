@@ -87,7 +87,8 @@ subdir-ccflags-$(CONFIG_SIWIFI_ACS_INTERNAL) += -DCONFIG_SIWIFI_ACS_INTERNAL
 # } // WAITING FOR KCONFIG
 
 # this is because we port the mac80211/cfg80211 from include/generated/uapi/linux/version.h
-subdir-ccflags-y += -DMY_LINUX_VERSION_CODE=265818
+# KERNEL_VERSION(6,6,51): 394803
+subdir-ccflags-y += -DMY_LINUX_VERSION_CODE=394803
 subdir-ccflags-$(CONFIG_SF16A18_WIFI_LED) += -DCONFIG_SF16A18_WIFI_LED
 subdir-ccflags-$(CONFIG_SF19A28_WIFI_LED) += -DCONFIG_SF19A28_WIFI_LED
 

@@ -2,6 +2,7 @@
 #define _RF_PL_REF_H_ 
 #include <linux/workqueue.h>
 #include <linux/mutex.h>
+#include <linux/clk.h>
 #define REG_SYSM_CATRF_RESET (volatile void *)(0xB9E00000 + 0x2C98)
 #define REG_SYSM_CATRF_SOFT_RESET (volatile void *)(0xB9E00000 + 0xD400)
 #define REG_SYSM_CATRF_SOFT_CLKEN (volatile void *)(0xB9E00000 + 0xD404)
@@ -30,7 +31,6 @@ typedef int (*baseband_callback)(void *data, uint32_t event, uint32_t flags, voi
 #define CLIENT_LB 1
 #define CLIENT_HB 2
 #define SUPPORT_MAX_CLIENT_NUM 2
-#ifdef CONFIG_SFA28_FULLMASK
 struct rf_ex_pa_config {
     uint8_t lb1_idle_cfg;
     uint8_t lb1_rx_cfg;
@@ -52,7 +52,6 @@ struct rf_ex_pa_config {
     uint8_t hb_rx_step2_delay;
     uint8_t hb_tx_step2_delay;
 };
-#endif
 enum sfax8_rf_cooling_state {
     RF_COOLING_STATE_NORMAL,
     RF_COOLING_STATE_LV1,
@@ -151,13 +150,14 @@ struct rf_pl_context{
     struct rf_cooling_temp_set cooling_temp_set;
     struct timer_list lp_clk_timer;
     bool lp_clk_timer_enable;
-    bool lp_clk_timer_gpio;
-    int lp_clk_timer_gpio_num;
     uint8_t lp_clk_edge;
     uint8_t hk_time_source;
     int32_t hk_temp_diff;
     bool update_tx_gain_table;
     struct device *dev;
+    int num_clks;
+    struct clk_bulk_data *clks;
+    struct reset_control *rstc;
     uint32_t rf_sw_version;
     uint32_t rf_sw_version1;
     uint32_t cali_table_version;

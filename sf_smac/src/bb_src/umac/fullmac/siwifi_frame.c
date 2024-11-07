@@ -329,7 +329,7 @@ static int siwifi_fill_ie_vht_tx_power_envelope(uint8_t *variable, uint8_t *cust
 {
     int ie_len = 0;
     if (!custom_ie) {
-        variable[0] = WLAN_EID_VHT_TX_POWER_ENVELOPE;
+        variable[0] = WLAN_EID_TX_POWER_ENVELOPE;
         variable[1] = SIWIFI_IE_VHT_TX_POWER_ENVELOPE_LEN;
         variable[2] = 0x02;
         variable[3] = 0x3c;
@@ -458,7 +458,7 @@ static int siwifi_fill_ie_default(uint8_t *variable, enum ieee80211_eid eid, int
         case WLAN_EID_VHT_CAPABILITY:
             ret = siwifi_fill_ie_vht_capability(variable, NULL, SIWIFI_IE_VHT_CAPABILITY_LEN);
             break;
-        case WLAN_EID_VHT_TX_POWER_ENVELOPE:
+        case WLAN_EID_TX_POWER_ENVELOPE:
             ret = siwifi_fill_ie_vht_tx_power_envelope(variable, NULL, SIWIFI_IE_VHT_TX_POWER_ENVELOPE_LEN);
             break;
         case WLAN_EID_VENDOR_SPECIFIC:
@@ -517,7 +517,7 @@ static int siwifi_fill_beacon_frame(struct siwifi_vif *siwifi_vif, uint8_t *beac
     if (is_hb) {
         beacon_ie_len += siwifi_fill_ie_default(variable + beacon_ie_len, WLAN_EID_VHT_CAPABILITY, is_hb);
         beacon_ie_len += siwifi_fill_ie_vht_operation(siwifi_vif, variable + beacon_ie_len);
-        beacon_ie_len += siwifi_fill_ie_default(variable + beacon_ie_len, WLAN_EID_VHT_TX_POWER_ENVELOPE, is_hb);
+        beacon_ie_len += siwifi_fill_ie_default(variable + beacon_ie_len, WLAN_EID_TX_POWER_ENVELOPE, is_hb);
     }
     beacon_ie_len += siwifi_fill_ie_default(variable + beacon_ie_len, WLAN_EID_VENDOR_SPECIFIC, is_hb);
     beacon_length += beacon_ie_len;
@@ -739,7 +739,7 @@ static int siwifi_fill_probe_rsp_frame(struct siwifi_vif *siwifi_vif, uint8_t *p
     if (is_hb) {
         probe_rsp_ie_length += siwifi_fill_ie_default(variable + probe_rsp_ie_length, WLAN_EID_VHT_CAPABILITY, is_hb);
         probe_rsp_ie_length += siwifi_fill_ie_default(variable + probe_rsp_ie_length, WLAN_EID_VHT_OPERATION, is_hb);
-        probe_rsp_ie_length += siwifi_fill_ie_default(variable + probe_rsp_ie_length, WLAN_EID_VHT_TX_POWER_ENVELOPE, is_hb);
+        probe_rsp_ie_length += siwifi_fill_ie_default(variable + probe_rsp_ie_length, WLAN_EID_TX_POWER_ENVELOPE, is_hb);
     }
     probe_rsp_ie_length += siwifi_fill_ie_default(variable + probe_rsp_ie_length, WLAN_EID_VENDOR_SPECIFIC, is_hb);
     probe_rsp_length += probe_rsp_ie_length;

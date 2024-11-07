@@ -29,11 +29,8 @@ struct siwifi_sta;
 #endif
 #if defined (CONFIG_SIWIFI_DEBUGFS)
 #define DEBUGFS_ADD_BOOL(name,parent,ptr) do { \
-    struct STRUCT_ENTRY_PROC_DEBUG *__tmp; \
-    __tmp = debugfs_create_bool(#name, S_IWUSR | S_IRUSR, \
+    debugfs_create_bool(#name, S_IWUSR | S_IRUSR, \
             parent, ptr); \
-    if (IS_ERR(__tmp) || !__tmp) \
-    goto err; \
 } while (0)
 #define DEBUGFS_ADD_X64(name,parent,ptr) do { \
     struct STRUCT_ENTRY_PROC_DEBUG *__tmp; \
@@ -57,11 +54,8 @@ struct siwifi_sta;
     goto err; \
 } while (0)
 #define DEBUGFS_ADD_U32(name,parent,ptr,mode) do { \
-    struct STRUCT_ENTRY_PROC_DEBUG *__tmp; \
-    __tmp = debugfs_create_u32(#name, mode, \
+    debugfs_create_u32(#name, mode, \
             parent, ptr); \
-    if (IS_ERR(__tmp) || !__tmp) \
-    goto err; \
 } while (0)
 #elif defined CONFIG_SIWIFI_PROCFS
 #define DEBUGFS_ADD_BOOL(name,parent,ptr) do { \

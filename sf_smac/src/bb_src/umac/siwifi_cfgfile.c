@@ -315,7 +315,7 @@ int siwifi_parse_digtable_configfile(struct siwifi_hw *siwifi_hw, const char *fi
 #define DEFAULT_VALUE_TXPOWER_GAIN_TABLE 0
 int siwifi_parse_txpower_gain_table_configfile(struct siwifi_hw *siwifi_hw, int ext_pa){
  const struct firmware *config_fw;
- unsigned int digtable[2];
+ u8 digtable[2];
  const u8 *tag_ptr;
  char tag_name[16];
  const char *filename;
@@ -362,7 +362,7 @@ int siwifi_parse_txpower_gain_table_configfile(struct siwifi_hw *siwifi_hw, int 
   }
   tag_ptr = siwifi_find_tag(config_fw->data, config_fw->size, tag_name, strlen("00"));
   if (tag_ptr != NULL) {
-   if (sscanf(tag_ptr,"%d",digtable) != 1){
+   if (sscanf(tag_ptr,"%hhu", digtable) != 1){
                 if(siwifi_hw->mod_params->is_hb){
      siwifi_hw->phy_config.hb_power_gain_tb[i] = DEFAULT_VALUE_TXPOWER_GAIN_TABLE;
     }else

@@ -11,17 +11,12 @@ struct mpw0_plat_data {
     void __iomem *base;
     int umac_irq;
     int32_t la_clk;
-    struct clk *pl_clk;
-    struct clk *bus_clk;
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
- struct clk *other_band_pl_clk;
-    struct clk *other_band_bus_clk;
-#endif
-#ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
-    struct clk *m_SFDSP_clk;
-#endif
     uint8_t band;
     uint8_t on;
+    int num_clks;
+    struct clk_bulk_data *clks;
+    struct reset_control *wlan_rstc;
+    struct reset_control *iram_rstc;
 };
 int lmac_glue_init(struct mpw0_plat_data *priv, struct device *device);
 u8 *lmac_glue_share_mem_init(struct mpw0_plat_data *priv);

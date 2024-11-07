@@ -138,7 +138,7 @@ static void siwifi_rx_statistic(struct siwifi_hw *siwifi_hw, struct hw_rxhdr *hw
         stats->ampdus_rx_miss += mpdu - mpdu_prev - 1;
     } else {
 #if DEBUG_ARRAY_CHECK
-        BUG_ON(mpdu_prev >= IEEE80211_MAX_AMPDU_BUF);
+        BUG_ON(mpdu_prev >= IEEE80211_MAX_AMPDU_BUF_HT);
 #endif
         stats->ampdus_rx[mpdu_prev]++;
     }
@@ -159,25 +159,19 @@ static void siwifi_rx_statistic(struct siwifi_hw *siwifi_hw, struct hw_rxhdr *hw
         switch (rxvect->format_mod) {
             case FORMATMOD_HT_MF:
             case FORMATMOD_HT_GF:
-#ifdef CONFIG_SFA28_FULLMASK
                 mcs = rxvect->mcs % 8;
                 nss = rxvect->mcs / 8;
                 sgi = rxvect->short_gi;
-#endif
                 rate_idx = 16 + nss * 32 + mcs * 4 + bw * 2 + sgi;
                 break;
             case FORMATMOD_VHT:
-#ifdef CONFIG_SFA28_FULLMASK
                 mcs = rxvect->mcs & 0x0F;
                 nss = rxvect->stbc ? rxvect->n_sts/2 : rxvect->n_sts;
                 sgi = rxvect->short_gi;
-#endif
                 rate_idx = 144 + nss * 80 + mcs * 8 + bw * 2 + sgi;
                 break;
             default:
-#ifdef CONFIG_SFA28_FULLMASK
                 return;
-#endif
                 break;
         }
     } else {
@@ -653,7 +647,7 @@ static void siwifi_rx_mgmt(struct siwifi_hw *siwifi_hw, struct siwifi_vif *siwif
                                                mgmt->u.beacon.variable,
                                                skb->len - offsetof(struct ieee80211_mgmt,
                                                                    u.beacon.variable),
-                                               GFP_ATOMIC);
+                                               0, GFP_ATOMIC);
         } else {
             cfg80211_report_obss_beacon(siwifi_hw->wiphy, skb->data, skb->len,
                                         hw_rxhdr->phy_info.phy_prim20_freq,
@@ -721,14 +715,12 @@ static u8 siwifi_rx_rtap_hdrlen(struct rx_vector_1 *rxvect,
     if ((rxvect->format_mod == FORMATMOD_HT_MF) ||
         (rxvect->format_mod == FORMATMOD_HT_GF))
         rtap_len += 3;
-#ifdef CONFIG_SFA28_FULLMASK
     if (!(has_vend_rtap) && ((rxvect->format_mod >= FORMATMOD_VHT) ||
                              ((rxvect->format_mod > FORMATMOD_NON_HT_DUP_OFDM) &&
                                                      (rxvect->aggregation)))) {
         rtap_len = ALIGN(rtap_len, 4);
         rtap_len += 8;
     }
-#endif
     if (rxvect->format_mod == FORMATMOD_VHT) {
         rtap_len = ALIGN(rtap_len, 2);
         rtap_len += 12;
@@ -807,30 +799,24 @@ static void siwifi_rx_add_rtap_hdr(struct siwifi_hw* siwifi_hw,
         *pos |= IEEE80211_RADIOTAP_F_SHORTPRE;
     pos++;
     if (rxvect->format_mod >= FORMATMOD_HE_SU) {
-#ifdef CONFIG_SFA28_FULLMASK
         rate_idx = rxvect->mcs;
         fec_coding = rxvect->fec_coding;
         stbc = rxvect->stbc;
-#endif
         aggregation = true;
         *pos = 0;
     } else if (rxvect->format_mod == FORMATMOD_VHT) {
-#ifdef CONFIG_SFA28_FULLMASK
         rate_idx = rxvect->mcs & 0x0F;
         fec_coding = rxvect->fec_coding;
         short_gi = rxvect->short_gi;
         stbc = rxvect->stbc;
-#endif
         aggregation = true;
         *pos = 0;
     } else if (rxvect->format_mod > FORMATMOD_NON_HT_DUP_OFDM) {
-#ifdef CONFIG_SFA28_FULLMASK
         rate_idx = rxvect->mcs;
         fec_coding = rxvect->fec_coding;
         short_gi = rxvect->short_gi;
         stbc = rxvect->stbc;
         aggregation = rxvect->aggregation;
-#endif
         *pos = 0;
     } else {
         struct ieee80211_supported_band* band =
@@ -893,9 +879,7 @@ static void siwifi_rx_add_rtap_hdr(struct siwifi_hw* siwifi_hw,
     if (rxvect->format_mod == FORMATMOD_VHT) {
         u16 vht_details = IEEE80211_RADIOTAP_VHT_KNOWN_GI |
                           IEEE80211_RADIOTAP_VHT_KNOWN_BANDWIDTH;
-#ifdef CONFIG_SFA28_FULLMASK
         u8 vht_nss = (rxvect->stbc ? rxvect->n_sts/2 : rxvect->n_sts) + 1;
-#endif
         rtap->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_VHT);
         if ((rxvect->ch_bw == __CHBW_CBW160)
                 && phy_info->phy_center2_freq)
@@ -996,9 +980,7 @@ u8 siwifi_unsup_rx_vec_ind(void *pthis, void *hostid) {
     if (rx_vect1->format_mod >= FORMATMOD_VHT)
         ht_length = 0;
     else
-#ifdef CONFIG_SFA28_FULLMASK
         ht_length = (u16) le32_to_cpu(rx_vect1->ht_length);
-#endif
     skb_reserve(skb, RADIOTAP_HDR_MAX_LEN);
     rtap = (struct vendor_radiotap_hdr *) skb->data;
     rtap->oui[0] = 0x00;

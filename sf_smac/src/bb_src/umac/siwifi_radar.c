@@ -839,6 +839,7 @@ static void siwifi_radar_process_pulse(struct work_struct *ws)
     for (chain = SIWIFI_RADAR_RIU; chain < SIWIFI_RADAR_LAST; chain++) {
         int i;
         u16 freq;
+        struct timespec64 ts;
         if (pulses_count[chain] == 0)
             continue;
         freq = siwifi_radar_get_center_freq(siwifi_hw, chain);
@@ -901,7 +902,8 @@ static void siwifi_radar_process_pulse(struct work_struct *ws)
                 } else {
                 }
                 radar->detected[chain].freq[idx] = (s16)freq + (2 * p->freq);
-                radar->detected[chain].time[idx] = get_seconds();
+                ktime_get_real_ts64(&ts);
+                radar->detected[chain].time[idx] = ts.tv_sec;
                 radar->detected[chain].index = ((idx + 1 ) %
                                                 NX_NB_RADAR_DETECTED);
                 radar->detected[chain].count++;
@@ -1103,7 +1105,7 @@ int siwifi_radar_dump_radar_detected(char *buf, size_t len,
     idx = (detect->index - detect->count) % NX_NB_RADAR_DETECTED;
     for (i = 0; i < count; i++) {
         struct tm tm;
-        time_to_tm(detect->time[idx], 0, &tm);
+        time64_to_tm(detect->time[idx], 0, &tm);
         res = scnprintf(&buf[write], len,
                         "%.4d/%.2d/%.2d - %.2d:%.2d %4.4dMHz\n",
                         (int)tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,

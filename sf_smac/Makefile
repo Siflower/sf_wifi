@@ -9,7 +9,7 @@ include $(INCLUDE_DIR)/package.mk
 define KernelPackage/sf_smac
   SUBMENU:=Wireless Drivers
   TITLE:=SIFLOWER sf19a28 wireless driver
-  DEPENDS:=+kmod-sfax8-factory-read +kmod-cfg80211 +@DRIVER_11N_SUPPORT +@DRIVER_11AC_SUPPORT
+  DEPENDS:=+kmod-cfg80211 +@DRIVER_11N_SUPPORT +@DRIVER_11AC_SUPPORT
   FILES:= \
 	$(PKG_BUILD_DIR)/rf/sf16a18_rf.ko \
 	$(PKG_BUILD_DIR)/startcore/startcore.ko \
@@ -73,7 +73,8 @@ define KernelPackage/sf_smac/description
  Kernel module to sf16a18 smac && rf.
 endef
 
-NOSTDINC_FLAGS = \
+NOSTDINC_FLAGS := \
+	$(KERNEL_NOSTDINC_FLAGS) \
 	-I$(PKG_BUILD_DIR) \
 	-I$(STAGING_DIR)/usr/include/mac80211-backport/uapi \
 	-I$(STAGING_DIR)/usr/include/mac80211-backport \
@@ -129,7 +130,6 @@ ifeq ($(SF_ARCH), a28fullmask)
 CONFIG_SF16A18_LMAC_USE_M_SFDSP=y
 NOSTDINC_FLAGS += -DCONFIG_SF16A18_LMAC_USE_M_SFDSP
 NOSTDINC_FLAGS += -DCONFIG_SFA28_FULLMASK
-EXTRA_KCONFIG += CONFIG_SFA28_FULLMASK=y
 endif
 
 #if driver is final release
@@ -184,10 +184,6 @@ ifdef CONFIG_SIWIFI_TEMPERATURE_CONTROL
 EXTRA_KCONFIG += CONFIG_SIWIFI_TEMPERATURE_CONTROL=y
 endif
 
-ifdef CONFIG_SFAX8_FACTORY_READ
-NOSTDINC_FLAGS += -DCONFIG_SFAX8_FACTORY_READ
-endif
-
 SFWIFI_COMPILE_TIME=$(shell date +%s)
 NOSTDINC_FLAGS += -DCONFIG_COMPILE_TIME=$(SFWIFI_COMPILE_TIME)
 
@@ -201,18 +197,14 @@ define Build/Prepare
 	$(CP) -r ./config $(PKG_BUILD_DIR)/
 	$(CP) -r ./test $(PKG_BUILD_DIR)/
 	$(CP) ./src/bb_src/ $(PKG_BUILD_DIR)/fmac/ -rf
-	$(CP) ../siflower_include/* $(PKG_BUILD_DIR)/fmac/bb_src/umac/fullmac/
-	$(CP) ../siflower_include/sfax8_factory_read.h $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
-	$(CP) ../siflower_include/* $(PKG_BUILD_DIR)/fmac/bb_src/umac/fullmac/
-	+$(MAKE) $(PKG_JOBS) -C "$(LINUX_DIR)" \
-		ARCH="$(LINUX_KARCH)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		SUBDIRS="$(PKG_BUILD_DIR)" \
+	+$(KERNEL_MAKE) $(PKG_JOBS) \
+		M="$(PKG_BUILD_DIR)" \
+		DRV_PATH="$(PKG_BUILD_DIR)" \
 		NOSTDINC_FLAGS="$(NOSTDINC_FLAGS)" \
-		$(EXTRA_KCONFIG)  \
+		$(EXTRA_KCONFIG) \
 		modules
 endef
 
@@ -241,7 +233,6 @@ else
 endif
 endif
 
-ifdef CONFIG_TARGET_siflower_sf19a28_fullmask
 	cp $(PKG_BUILD_DIR)/config/$(SF_ARCH)/dig_gaintable.ini $(1)/lib/firmware
 	cp  $(PKG_BUILD_DIR)/config/$(SF_ARCH)/dig_gaintable_expa.ini $(1)/lib/firmware
 	cp  $(PKG_BUILD_DIR)/config/$(SF_ARCH)/default_hb_txpower_table.ini $(1)/lib/firmware
@@ -268,7 +259,6 @@ endif
 	$(INSTALL_DIR) $(1)/usr/bin
 	cp $(PKG_BUILD_DIR)/config/cali_table/txpower_calibrate_table.sh $(1)/usr/bin
 	cp $(PKG_BUILD_DIR)/config/cali_table/txpower_calibrate_table.txt $(1)/usr/bin
-endif
 	cp $(PKG_BUILD_DIR)/config/sfwifi-a28.sh $(1)/lib/sfwifi.sh
 	$(INSTALL_DIR) $(1)/bin
 	cp $(PKG_BUILD_DIR)/config/sfwifi $(1)/bin/

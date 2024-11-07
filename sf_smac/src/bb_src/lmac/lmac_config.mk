@@ -122,7 +122,6 @@ endif
 # is disabled or enabled by the factory section content stored in flash
 CONFIG_SIWIFI_TX_POWER_CALI = y
 
-ifeq ($(CONFIG_SFA28_FULLMASK),y)
 #enable digital gain table
 ccflags-y += -DCONFIG_ENABLE_DIGGAINTABLE
 #enable independent antenna control (changing 1*1 when needed)
@@ -130,7 +129,6 @@ ccflags-y += -DCONFIG_ENABLE_DIGGAINTABLE
 #ccflags-y += -DINDEPENDENT_ANTENNA_CONTROL
 #enable txpower with gain table
 ccflags-y += -DCONFIG_ENABLE_TXPOWERTABLE
-endif
 
 ifeq ($(CONFIG_RF_GAIN_TABLE),y)
 ccflags-y += -DCONFIG_ENABLE_RFGAINTABLE

@@ -397,28 +397,28 @@ void vendor_hook_sta_added(struct siwifi_sta *sta, struct station_parameters *pa
     if (sta == NULL || params == NULL) {
         return;
     }
-    if (params->vht_capa) {
-        sta->stats.no_ss = vendor_11ac_nss_max(cpu_to_le16(params->vht_capa->supp_mcs.rx_mcs_map));
-    } else if (params->ht_capa) {
-        sta->stats.no_ss = vendor_11n_nss_max((uint8_t *)&params->ht_capa->mcs);
+    if (params->link_sta_params.vht_capa) {
+        sta->stats.no_ss = vendor_11ac_nss_max(cpu_to_le16(params->link_sta_params.vht_capa->supp_mcs.rx_mcs_map));
+    } else if (params->link_sta_params.ht_capa) {
+        sta->stats.no_ss = vendor_11n_nss_max((uint8_t *)&params->link_sta_params.ht_capa->mcs);
     } else {
         sta->stats.no_ss = 0;
     }
     sta->stats.short_gi = 0;
     if (sta->width == BW_20MHZ) {
-        if (params->ht_capa && (cpu_to_le16(params->ht_capa->cap_info) & MAC_HTCAPA_SHORTGI_20)) {
+        if (params->link_sta_params.ht_capa && (cpu_to_le16(params->link_sta_params.ht_capa->cap_info) & MAC_HTCAPA_SHORTGI_20)) {
             sta->stats.short_gi = 1;
         }
     } else if (sta->width == BW_40MHZ) {
-        if (params->ht_capa && (cpu_to_le16(params->ht_capa->cap_info) & MAC_HTCAPA_SHORTGI_40)) {
+        if (params->link_sta_params.ht_capa && (cpu_to_le16(params->link_sta_params.ht_capa->cap_info) & MAC_HTCAPA_SHORTGI_40)) {
             sta->stats.short_gi = 1;
         }
     } else if (sta->width == BW_80MHZ) {
-        if (params->vht_capa && (cpu_to_le32(params->vht_capa->vht_cap_info) & MAC_VHTCAPA_SHORTGI_80)) {
+        if (params->link_sta_params.vht_capa && (cpu_to_le32(params->link_sta_params.vht_capa->vht_cap_info) & MAC_VHTCAPA_SHORTGI_80)) {
             sta->stats.short_gi = 1;
         }
     } else if (sta->width == BW_160MHZ) {
-        if (params->vht_capa && (cpu_to_le32(params->vht_capa->vht_cap_info) & MAC_VHTCAPA_SHORTGI_160)) {
+        if (params->link_sta_params.vht_capa && (cpu_to_le32(params->link_sta_params.vht_capa->vht_cap_info) & MAC_VHTCAPA_SHORTGI_160)) {
             sta->stats.short_gi = 1;
         }
     } else {

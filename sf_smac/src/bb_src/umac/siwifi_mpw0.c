@@ -6,12 +6,9 @@
 #include <linux/of_net.h>
 #include <linux/mtd/mtd.h>
 #include <linux/clk.h>
-#include <sf19a28.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-#ifdef CONFIG_SFA28_FULLMASK
-#include <sf19a28.h>
-#endif
+#include <linux/reset.h>
 #ifdef CONFIG_SFAX8_FACTORY_READ
 #include <sfax8_factory_read.h>
 #endif
@@ -342,7 +339,6 @@ static int sf_wifi_rf_callback(void *data, uint32_t event, uint32_t flags, void 
                 return RF_RET_FAILED;
             }
             {
-#ifdef CONFIG_SFA28_FULLMASK
                 int change_power;
                 int change_power_trend;
                 if(siwifi_hw->mod_params->is_hb){
@@ -400,7 +396,6 @@ static int sf_wifi_rf_callback(void *data, uint32_t event, uint32_t flags, void 
                     }
                     REG_PL_WR((priv->base + 0x00160000 + 0x0200),txpower_tmp);
                 }
-#endif
 #endif
                 return RF_RET_OK;
             }
@@ -624,75 +619,45 @@ static void sf_wifi_lmac_share_ram_take(struct mpw0_plat_data *priv)
     uint8_t tmp = 0;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     printk("Now take band %s\n", priv->band == 1 ? "2.4G" : "5G");
-    release_reset(SF_IRAM_SOFT_RESET);
+    reset_control_deassert(priv->wlan_rstc);
+    if (priv->band & LB_MODULE){
+        reset_control_deassert(priv->iram_rstc);
+    }
     tmp = readb((void *)REG_SYSM_SHARE_RAM_SEL);
-#ifdef CONFIG_SFA28_FULLMASK
     if (priv->band & LB_MODULE)
         tmp &= ~(1 << 1);
     else
         tmp &= ~(1 << 0);
-#endif
     writeb(tmp, (void *)REG_SYSM_SHARE_RAM_SEL);
 }
 static void sf_wifi_lmac_share_ram_leave(struct mpw0_plat_data *priv)
 {
-#ifdef CONFIG_SFA28_FULLMASK
     uint8_t tmp = 0;
-#endif
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     printk("Now leave band %s\n", priv->band == 1 ? "2.4G" : "5G");
-#ifdef CONFIG_SFA28_FULLMASK
     tmp = readb((void *)REG_SYSM_SHARE_RAM_SEL);
     if (priv->band & LB_MODULE)
         tmp &= ~(1 << 0);
     else
         tmp &= ~(1 << 1);
     writeb(tmp, (void *)REG_SYSM_SHARE_RAM_SEL);
-#endif
-    hold_reset(SF_IRAM_SOFT_RESET);
+    reset_control_assert(priv->wlan_rstc);
+    if (priv->band & LB_MODULE)
+        reset_control_assert(priv->iram_rstc);
 }
 static void sf_wifi_lmac_platform_reset(struct siwifi_hw *siwifi_hw, struct mpw0_plat_data *priv, uint8_t init, uint8_t system_reset)
 {
-    uint32_t offset;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
-    offset = (priv->band & LB_MODULE) ? SF_WIFI_1_SOFT_RESET : SF_WIFI_2_SOFT_RESET;
     if (init) {
-        uint32_t value;
-        if (system_reset) {
-            if (!siwifi_hw->mod_params->is_hb) {
-                writew(0x0, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_1_SYSM_RESET));
-                writew(0x1, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_1_SYSM_RESET));
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-                writew(0x0, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_2_SYSM_RESET));
-                writew(0x1, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_2_SYSM_RESET));
-#endif
-            } else {
-                writew(0x0, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_2_SYSM_RESET));
-                writew(0x1, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_2_SYSM_RESET));
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-                writew(0x0, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_1_SYSM_RESET));
-                writew(0x1, (void *)(SIFLOWER_SYSCTL_BASE + SF_WIFI_1_SYSM_RESET));
-#endif
-            }
+        reset_control_deassert(priv->wlan_rstc);
+        if (priv->band & LB_MODULE){
+            reset_control_deassert(priv->iram_rstc);
         }
-        release_reset(offset);
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-        release_reset((priv->band & LB_MODULE) ? SF_WIFI_2_SOFT_RESET : SF_WIFI_1_SOFT_RESET);
-#endif
-        writeb(0x2, (priv->band & LB_MODULE) ? REG_SYSM_WIFI1_LA_CLK_SEL : REG_SYSM_WIFI2_LA_CLK_SEL);
-        value = get_module_clk_gate(offset, 0);
-        value &= 0xF7;
-        set_module_clk_gate(offset, value, 0);
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-        value = get_module_clk_gate((priv->band & LB_MODULE) ? SF_WIFI_2_SOFT_RESET : SF_WIFI_1_SOFT_RESET, 0);
-        value &= 0xF7;
-        set_module_clk_gate((priv->band & LB_MODULE) ? SF_WIFI_2_SOFT_RESET : SF_WIFI_1_SOFT_RESET, value, 0);
-#endif
     } else {
-        hold_reset(offset);
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-        hold_reset((priv->band & LB_MODULE) ? SF_WIFI_2_SOFT_RESET : SF_WIFI_1_SOFT_RESET);
-#endif
+        reset_control_assert(priv->wlan_rstc);
+        if (priv->band & LB_MODULE){
+            reset_control_assert(priv->iram_rstc);
+        }
     }
 }
 #define LDPC_RAM_ADDR_OFFSET (0x00100000 + 0x9000)
@@ -931,49 +896,12 @@ static int siwifi_irqs_init(struct siwifi_hw *siwifi_hw, struct mpw0_plat_data *
 static int siwifi_sysm_enable(struct siwifi_hw *siwifi_hw, struct mpw0_plat_data *priv, uint8_t init)
 {
     int ret = 0;
+    SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     if (init) {
-#ifdef CONFIG_SFA28_FULLMASK
-        ret = clk_set_rate(priv->pl_clk, 375000000);
-#endif
-        if (ret) {
-            printk("clk_set_rate failed!, ret : %d\n", ret);
-        }
-        ret = clk_prepare_enable(priv->pl_clk);
-        if (ret) {
-            printk("Failed to enable pl clk\n");
+        ret = clk_bulk_prepare_enable(priv->num_clks, priv->clks);
+        if (ret < 0) {
+            printk("failed to enable all clocks: %d\n", ret);
             return ret;
-        }
-        printk("the default platform clk rate is %lu\n", clk_get_rate(priv->pl_clk));
-        ret = clk_prepare_enable(priv->bus_clk);
-        if (ret) {
-            printk("Failed to enable wifi bus clk\n");
-            return ret;
-        }
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-        ret = clk_prepare_enable(priv->other_band_pl_clk);
-        if (ret) {
-            printk("Failed to enable other band pl clk\n");
-            return ret;
-        }
-        printk("the default other band platform clk rate is %lu\n", clk_get_rate(priv->pl_clk));
-        ret = clk_prepare_enable(priv->other_band_bus_clk);
-        if (ret) {
-            printk("Failed to enable wifi other band bus clk\n");
-            return ret;
-        }
-#endif
-#ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
-        ret = clk_prepare_enable(priv->m_SFDSP_clk);
-        if (ret) {
-            printk("Failed to enable _SFDSP clk\n");
-            return ret;
-        }
-#endif
-        if(!siwifi_hw->mod_params->is_hb)
-        {
-            clk_set_rate(priv->pl_clk, 300000000);
-            clk_set_rate(priv->bus_clk, 300000000);
-            clk_set_rate(priv->m_SFDSP_clk, 375000000);
         }
     }
 #ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
@@ -982,15 +910,7 @@ static int siwifi_sysm_enable(struct siwifi_hw *siwifi_hw, struct mpw0_plat_data
     sf_wifi_lmac_platform_reset(siwifi_hw, priv, init, 0);
 #endif
     if (!init) {
-#ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
-        clk_disable_unprepare(priv->m_SFDSP_clk);
-#endif
-        clk_disable_unprepare(priv->pl_clk);
-        clk_disable_unprepare(priv->bus_clk);
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-        clk_disable_unprepare(priv->other_band_pl_clk);
-        clk_disable_unprepare(priv->other_band_bus_clk);
-#endif
+        clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
     }
     return ret;
 }
@@ -1326,7 +1246,6 @@ void siwifi_platform_off(struct siwifi_hw *siwifi_hw)
 }
 static int siwifi_platform_init(struct siwifi_plat **siwifi_pl, struct platform_device *pdev)
 {
-    struct resource *res;
     uint32_t priv_size = 0;
     struct mpw0_plat_data *priv = NULL;
     struct siwifi_plat *siwifi_plat = NULL;
@@ -1341,122 +1260,47 @@ static int siwifi_platform_init(struct siwifi_plat **siwifi_pl, struct platform_
         return -ENOMEM;
     }
     siwifi_plat->pdev = pdev;
-    res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-    if (!res) {
-        printk("no resource in dts file!\n");
-        ret = -ENODEV;
-        goto error_plat;
-    }
-    if (!request_mem_region(res->start, resource_size(res), pdev->name)) {
-        printk("can not request mem region from 0x%x with the size 0x%x\n", res->start, resource_size(res));
-        ret = -EBUSY;
-        goto error_plat;
-    }
     priv = (struct mpw0_plat_data *)&siwifi_plat->priv;
-    priv->base = ioremap(res->start, resource_size(res));
-    if (!priv->base) {
-        printk("can not remap the sources!\n");
-        ret = -EINVAL;
-        goto error_resources;
+    priv->base = devm_platform_ioremap_resource(pdev, 0);
+    if (IS_ERR(priv->base)) {
+        return dev_err_probe(&pdev->dev, PTR_ERR(priv->base), "failed to remap memory region.\n");
+    }
+    priv->wlan_rstc = devm_reset_control_get(&pdev->dev, "wlan_reset");
+    if (IS_ERR(priv->wlan_rstc)) {
+        return PTR_ERR(priv->wlan_rstc);
+    }
+    if (!mod_params->is_hb){
+        priv->iram_rstc = devm_reset_control_get(&pdev->dev, "iram_reset");
+        if (IS_ERR(priv->iram_rstc)) {
+            return PTR_ERR(priv->iram_rstc);
+        }
     }
     priv->umac_irq = platform_get_irq(pdev, 1);
     if (priv->umac_irq == -ENXIO) {
         printk("can not get the umac_irq from system!\n");
         ret = -ENXIO;
-        goto error_io;
+        goto error_plat;
     }
     if (!mod_params->is_hb)
         priv->band = LB_MODULE;
     else
         priv->band = HB_MODULE;
-    if (!mod_params->is_hb){
-        priv->pl_clk = devm_clk_get(&pdev->dev, "wlan_clk");
-        printk("sucessful platform get priv->lb_band: %d\n",priv->band);
+    ret = devm_clk_bulk_get_all(&pdev->dev, &priv->clks);
+    if (ret < 8) {
+        return dev_err_probe(&pdev->dev, ret, "failed to get all clocks\n");
     }
-    else{
-        priv->pl_clk = devm_clk_get(&pdev->dev, "wlan_clk");
-        printk("sucessful platform get priv->hb_band: %d\n",priv->band);
-    }
-    if (IS_ERR(priv->pl_clk)) {
-        dev_err(&pdev->dev, "Failed to get wlan platform clk\n");
-        ret = -EINVAL;
-        goto error_io;
-    }
-#ifdef CONFIG_SFA28_FULLMASK
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-    if (!mod_params->is_hb)
-    {
-        priv->bus_clk = devm_clk_get(&pdev->dev, "bus2_clk");
-        priv->other_band_bus_clk = devm_clk_get(&pdev->dev, "bus3_clk");
-        priv->other_band_pl_clk = devm_clk_get(&pdev->dev, "wlan5_clk");
-    }
-    else
-    {
-        priv->bus_clk = devm_clk_get(&pdev->dev, "bus3_clk");
-        priv->other_band_bus_clk = devm_clk_get(&pdev->dev, "bus2_clk");
-        priv->other_band_pl_clk = devm_clk_get(&pdev->dev, "wlan24_clk");
-    }
-#else
-    if (!mod_params->is_hb)
-    {
-        priv->bus_clk = devm_clk_get(&pdev->dev, "bus2_clk");
-    }
-    else
-    {
-        priv->bus_clk = devm_clk_get(&pdev->dev, "bus3_clk");
-    }
-#endif
-#endif
-    if (IS_ERR(priv->bus_clk)) {
-        dev_err(&pdev->dev, "Failed to get wlan bus clk\n");
-        ret = -EINVAL;
-        goto error_io;
-    }
-#if (defined(CONFIG_SF16A18_WIFI_LA_ENABLE) && (defined(CFG_A28_MPW_LA_CLK_BUG) || defined(CFG_A28_FULLMASK_LA_BUG)))
-    if (IS_ERR(priv->other_band_bus_clk)) {
-        dev_err(&pdev->dev, "Failed to get other band bus clk\n");
-        ret = -EINVAL;
-        goto error_io;
-    }
-    if (IS_ERR(priv->other_band_pl_clk)) {
-        dev_err(&pdev->dev, "Failed to get other band pl clk\n");
-        ret = -EINVAL;
-        goto error_io;
-    }
-#endif
-#ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
-    if (!mod_params->is_hb){
-        priv->m_SFDSP_clk = devm_clk_get(&pdev->dev, "m_SFDSPclk");
-        printk("lb_m_SFDSPclk\n");
-     }
-    else{
-        priv->m_SFDSP_clk = devm_clk_get(&pdev->dev, "m_SFDSPclk");
-        printk("hb_m_SFDSPclk\n");
-    }
-    if (IS_ERR(priv->m_SFDSP_clk)) {
-        if (priv->m_SFDSP_clk)
-            printk("adafafanull\n");
-        printk("sucessful platform get priv->m_SFDSP_clk %lu\n",(unsigned long)priv->m_SFDSP_clk);
-        dev_err(&pdev->dev, "Failed to get _SFDSP clk\n");
-        ret = -EINVAL;
-        goto error_io;
-    }
-#endif
+    priv->num_clks = ret;
     sf_wifi_lmac_share_ram_take(priv);
     if (lmac_glue_init(priv, &pdev->dev)) {
         printk("lmac_glue_init failed!\n");
         ret = -EINVAL;
         goto error_fw;
     }
-    printk("%s, priv->base : %p\n", __func__, priv->base);
+    printk("%s, priv->base : %px\n", __func__, priv->base);
     *siwifi_pl = siwifi_plat;
     return 0;
 error_fw:
     sf_wifi_lmac_share_ram_leave(priv);
-error_io:
-    iounmap(priv->base);
-error_resources:
-    release_mem_region(res->start, resource_size(res));
 error_plat:
     siwifi_kfree(siwifi_plat);
     *siwifi_pl = NULL;
@@ -1465,17 +1309,12 @@ error_plat:
 }
 static void siwifi_platform_deinit(struct siwifi_plat *siwifi_plat)
 {
-    struct resource *res;
     struct mpw0_plat_data *priv;
     struct platform_device *pdev;
     priv = (struct mpw0_plat_data *)&siwifi_plat->priv;
     pdev = siwifi_plat->pdev;
     lmac_glue_deinit(priv);
     sf_wifi_lmac_share_ram_leave(priv);
-    res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-    if (res)
-        release_mem_region(res->start, resource_size(res));
-    iounmap(priv->base);
     siwifi_kfree(siwifi_plat);
 }
 #ifndef CONFIG_SF16A18_WIFI_LB_LA_ENABLE
@@ -1616,10 +1455,10 @@ static const char sf_wifi_module_name[16] = {
 };
 static const struct of_device_id sf_wifi_of_match[] = {
 #ifndef CONFIG_SF16A18_WIFI_HB_LA_ENABLE
- { .compatible = "siflower,sf16a18-wifi-lb", .data = &lb_mod_param},
+ { .compatible = "siflower,sf19a2890-lb", .data = &lb_mod_param},
 #endif
 #ifndef CONFIG_SF16A18_WIFI_LB_LA_ENABLE
- { .compatible = "siflower,sf16a18-wifi-hb", .data = &hb_mod_param},
+ { .compatible = "siflower,sf19a2890-hb", .data = &hb_mod_param},
 #endif
  {},
 };

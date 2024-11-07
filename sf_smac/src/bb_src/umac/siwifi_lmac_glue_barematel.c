@@ -8,17 +8,12 @@
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/interrupt.h>
-#ifdef CONFIG_SFA28_FULLMASK
-#include <sf19a28.h>
-#endif
 #ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
 static char *g_fw_lb = "sf1688_lb_fmac.bin";
 static char *g_fw_hb = "sf1688_hb_fmac.bin";
 #endif
-#if defined(CONFIG_SFA28_FULLMASK)
 #define LB_IRAM_BASE 0xbc000000
 #define HB_IRAM_BASE 0xbc008000
-#endif
 static int g_task_id_lb = -1;
 static int g_task_id_hb = -1;
 extern int load_task(char *path, int cpu, struct device *device);
@@ -59,10 +54,8 @@ void notify_lmac_la_init_ipc(struct siwifi_hw *siwifi_hw, int8_t type, int8_t en
             data &= ~((priv->band & LB_MODULE) ? ( 1 << 0 ) : ( 1 << 1 ));
         writeb(data, (void *)REG_SYSM_SHARE_RAM_SEL);
   writeb((2 << 4) | 0xd,(void *)((priv->band & LB_MODULE) ? WIFI_1_LA_THRES : WIFI_2_LA_THRES));
-#ifdef CONFIG_SFA28_FULLMASK
         writeb(0x4, (void *)((priv->band & LB_MODULE) ? REG_SYSM_WIFI1_LA_CLK_SEL : REG_SYSM_WIFI2_LA_CLK_SEL));
         priv->la_clk = 300;
-#endif
     }else if(type == DEEP_DEBUG_IQDUMP){
     }else{
         printk("%s invalid type : %d\n", __func__, type);
@@ -75,11 +68,7 @@ void notify_lmac_la_init_ipc(struct siwifi_hw *siwifi_hw, int8_t type, int8_t en
         priv->deep_debug_type &= ~type;
     ret = 1;
 EXIT:
-#if defined(CONFIG_SFA28_FULLMASK)
     ipc_shenv = (struct ipc_shared_env_tag *)((priv->band == LB_MODULE) ? LB_IRAM_BASE : HB_IRAM_BASE);
-#else
-    ipc_shenv = (struct ipc_shared_env_tag *)((priv->band == LB_MODULE) ? MEM_LB_SHARE_MEM_BASE : MEM_HB_SHARE_MEM_BASE);
-#endif
     clear_ipc_event_user_bit(ipc_shenv, IPC_USER_EVENT_DEEP_DEBUG_SET);
     set_ipc_event_user_reply(ipc_shenv, ret);
 }
@@ -112,11 +101,7 @@ int lmac_glue_init(struct mpw0_plat_data *priv, struct device *device)
 }
 u8 *lmac_glue_share_mem_init(struct mpw0_plat_data *priv)
 {
-#if defined(CONFIG_SFA28_FULLMASK)
     return (u8 *)((priv->band == LB_MODULE) ? LB_IRAM_BASE : HB_IRAM_BASE);
-#else
-    return (u8 *)((priv->band == LB_MODULE) ? MEM_LB_SHARE_MEM_BASE : MEM_HB_SHARE_MEM_BASE);
-#endif
 }
 #define LMAC_TIMEOUT_MS 30000
 int lmac_glue_start(struct siwifi_hw *siwifi_hw, struct mpw0_plat_data *priv)

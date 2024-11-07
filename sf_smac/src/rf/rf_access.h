@@ -48,7 +48,6 @@ void rf_reset_hb_tx_gain_table(void);
 #define RF_LB_BASE_GAIN 16
 #define RF_HB_BASE_GAIN_DIFF 3
 #endif
-#ifdef CONFIG_SFA28_FULLMASK
 int32_t rf_get_trx_status(bool is_hb, uint16_t *trx_state, uint16_t *freq, uint16_t *chbw);
 int16_t rf_set_property(uint8_t property_id, uint16_t value);
 uint16_t rf_get_property(uint8_t property_id);
@@ -57,5 +56,4 @@ int8_t ml_apb_send_1_params_cmd(uint16_t rrq, uint16_t cmd_base, uint16_t cmd, u
 int8_t ml_apb_send_2_params_cmd(uint16_t rrq, uint16_t cmd_base, uint16_t cmd, uint16_t args0, uint16_t args1);
 int8_t ml_apb_send_3_params_cmd(uint16_t rrq, uint16_t cmd_base, uint16_t cmd, uint16_t args0, uint16_t args1, uint16_t args2);
 int8_t ml_apb_send_4_params_cmd(uint16_t rrq, uint16_t cmd_base, uint16_t cmd, uint16_t args0, uint16_t args1, uint16_t args2, uint16_t args3);
-#endif
 #endif

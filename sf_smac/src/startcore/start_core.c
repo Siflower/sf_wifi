@@ -1,9 +1,6 @@
 #include <linux/module.h>
 #include "start_core.h"
 #include <linux/kernel.h>
-#ifdef CONFIG_SFA28_FULLMASK
-#include <sf19a28.h>
-#endif
 #include <linux/fs.h>
 #include <asm/r4kcache.h>
 #include <linux/firmware.h>

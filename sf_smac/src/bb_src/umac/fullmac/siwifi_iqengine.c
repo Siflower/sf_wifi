@@ -53,7 +53,6 @@ int iqe_init(struct siwifi_hw *priv, uint32_t iqlength, int mode)
     printk("phy addr:%x buf addr: %p length: %d\n", iqe->iq_buffer_phy, iqe->iq_buffer, iqlength);
     if (iqe->mode == IQE_BB_PLAYER || iqe->mode == IQE_RF_PLAYER)
     {
-        mm_segment_t old_fs;
         loff_t pos = 0;
         uint32_t iq_pairs = 0;
         char wbuf[32];
@@ -65,8 +64,6 @@ int iqe_init(struct siwifi_hw *priv, uint32_t iqlength, int mode)
             siwifi_kfree(buf);
             return -1;
         }
-        old_fs = get_fs();
-        set_fs(KERNEL_DS);
         iq_buf = (uint16_t *)iqe->iq_buffer;
         do {
             kernel_read(file, wbuf, 14, &pos);
@@ -77,7 +74,6 @@ int iqe_init(struct siwifi_hw *priv, uint32_t iqlength, int mode)
             memset(wbuf, 0, 32);
         } while(iq_pairs < (iqe->iq_buffer_len >> 1));
         printk("read %lld bytes into file\n", pos);
-        set_fs(old_fs);
         filp_close(file, 0);
         dma_sync_single_for_device(priv->dev, iqe->iq_buffer_phy,
                 iqlength, DMA_BIDIRECTIONAL);
@@ -162,7 +158,6 @@ void iqe_enable(struct siwifi_hw *priv, int enable)
     if (iqe->mode == IQE_BB_RECORDER ||
             iqe->mode == IQE_RF_RECORDER)
     {
-        mm_segment_t old_fs;
         loff_t pos = 0;
         uint32_t iq_pairs = 0;
         char wbuf[32] = "\0";
@@ -172,8 +167,6 @@ void iqe_enable(struct siwifi_hw *priv, int enable)
             printk("can not open file %s\n", SIWIFI_IQ_OUTPUT_FILE);
             goto RELEASE;
         }
-        old_fs = get_fs();
-        set_fs(KERNEL_DS);
         iq_buf = (uint32_t *)iqe->iq_buffer;
         do {
             sprintf(wbuf, "0x%08x\n", iq_buf[iq_pairs]);
@@ -186,7 +179,6 @@ void iqe_enable(struct siwifi_hw *priv, int enable)
             memset(wbuf, 0, 32);
         } while(iq_pairs < (iqe->iq_buffer_len >> 2));
         printk("write %lld bytes into file\n", pos);
-        set_fs(old_fs);
         filp_close(file, NULL);
     }
 RELEASE:

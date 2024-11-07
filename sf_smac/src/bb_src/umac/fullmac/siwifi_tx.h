@@ -83,7 +83,7 @@ struct siwifi_txhdr {
     char cache_guard2[L1_CACHE_BYTES];
 };
 u16 siwifi_select_txq(struct siwifi_vif *siwifi_vif, struct sk_buff *skb);
-int siwifi_start_xmit(struct sk_buff *skb, struct net_device *dev);
+netdev_tx_t siwifi_start_xmit(struct sk_buff *skb, struct net_device *dev);
 int siwifi_start_mgmt_xmit(struct siwifi_vif *vif, struct siwifi_sta *sta,
                          struct cfg80211_mgmt_tx_params *params, bool offchan,
                          u64 *cookie);

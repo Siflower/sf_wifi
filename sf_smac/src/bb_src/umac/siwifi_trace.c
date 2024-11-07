@@ -1,3 +1,5 @@
+#include <linux/sched/clock.h>
+#include <uapi/linux/ip.h>
 #include "siwifi_defs.h"
 #include "siwifi_trace.h"
 #include "siwifi_mem.h"
